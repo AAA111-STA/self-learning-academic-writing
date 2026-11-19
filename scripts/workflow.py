@@ -303,6 +303,21 @@ def read_transition(notes, excerpt):
     return transition
 
 
+def read_sentence_patterns(notes, source_text):
+    examples = notes.get("sentence_patterns", [])
+    require(isinstance(examples, list), "sentence_patterns 应为句式条目的列表。")
+    patterns = []
+    for item in examples:
+        require(isinstance(item, dict), "每条 sentence_patterns 记录应为 JSON 对象。")
+        pattern = {key: required_text(item, key) for key in ("anchor", "location", "template", "application")}
+        anchor = normal_text(pattern["anchor"])
+        template = normal_text(pattern["template"])
+        require(anchor in source_text, "句式例句不在所读章节中。")
+        require(template != anchor and re.search(r"\{[^{}]+\}", template), "句式骨架需用 {槽位} 标出要替换的内容。")
+        patterns.append(pattern)
+    return patterns
+
+
 def record_study(state, reference, excerpt_path, context_path, notes_path):
     require_open_round(state)
     require(reference in state["references"], f"该文献未由用户指定：{reference}")
@@ -328,6 +343,9 @@ def record_study(state, reference, excerpt_path, context_path, notes_path):
         "paragraph_transition": transition,
         "patterns": patterns,
     }
+    sentence_patterns = read_sentence_patterns(notes, source_text)
+    if sentence_patterns:
+        record["sentence_patterns"] = sentence_patterns
     assign_study(state, reference, record)
     return record, excerpt, context
 

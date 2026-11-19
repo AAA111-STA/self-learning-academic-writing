@@ -4,15 +4,16 @@
 
 # Self-Learning Academic Writing
 
-An Agent Skill for Chinese- and English-language journals. It studies the example papers you choose, combines what it learns with your evidence and intended argument, and proposes a section outline before it drafts. It can also edit existing manuscripts or translate Chinese into concise academic English when explicitly requested.
+An Agent Skill for Chinese- and English-language journals. It studies the papers you choose, from the overall argument down to individual sentence patterns. It combines what it learns with your evidence and intended argument, then proposes a section outline before drafting. It can also edit existing manuscripts or translate Chinese into concise academic English when explicitly requested.
 
-**Reuse references across sessions.** A [local project reference library](references/reference-library.md) creates a `references.md` index of the papers you provide, any local copies, and excerpts and reading notes by section. Open the same manuscript folder when you change sessions or agents. Writing preferences that the author explicitly confirms are saved separately in a local author profile.
+**Reuse references across sessions.** A [local project reference library](references/reference-library.md) creates a `references.md` index of the papers you provide, any local copies, and excerpts, reusable sentence frames, and reading notes by section. Open the same manuscript folder when you change sessions or agents. Writing preferences that the author explicitly confirms are saved separately in a local author profile.
 
 ## What it does
 
 | Capability | How it works |
 | --- | --- |
 | Study reference papers | Examine the paper's argument, the target section's role, paragraph transitions, grammar, wording, and concision. Record traceable source excerpts. |
+| Adapt sentences from example papers | Reuse a sentence’s grammatical structure or a conventional phrase that serves the same purpose. Fill the frame with your own research, and fit it to the surrounding text. |
 | Keep a reference library | Automatically create a `references.md` index with local source copies and notes organized by paper and section. Reuse them across sessions in the same workspace. |
 | Draft by section | Work on the abstract, introduction, literature review, methods, data, results, discussion, or conclusion. Present a plan and wait for an explicit start. |
 | Edit existing text | Polish Chinese or English, including text translated elsewhere. Preserve the author's meaning, facts, citations, terminology, and claim strength. |
@@ -54,7 +55,7 @@ See [Agent setup and hook configuration](references/agent-hooks.md) for optional
 
 ## Example requests
 
-> Use self-learning-academic-writing. Study the discussion sections of these papers and outline my Discussion using the results I supplied. Wait for “Start writing.”
+> Use self-learning-academic-writing. Study the discussion sections of these papers and save useful sentence frames for comparing findings, and outline my Discussion using the results I supplied. Wait for “Start writing.”
 
 > Polish this draft for an English-language journal. Propose edits first and preserve the meaning and data.
 

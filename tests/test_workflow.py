@@ -324,15 +324,36 @@ class WorkflowTests(unittest.TestCase):
         }
         for name in ("expression", "grammar", "organization", "concision"):
             notes[name] = {"anchor": second, "observation": "用具体动词说明研究对象", "application": "引出问题"}
+        frame = {
+            "anchor": second,
+            "location": "Introduction, paragraph 2",
+            "template": "We examine {outcome} within {unit}.",
+            "application": "State the research objective after introducing the gap.",
+        }
+        notes["sentence_patterns"] = [{**frame, "anchor": context}]
+        self.run_workflow("study", "paper-a", excerpt, surroundings, self.write("study.json", notes),
+                          error="句式例句不在所读章节中")
+        self.assertEqual(self.status()["missing_study"], ["paper-a", "paper-b"])
+        notes["sentence_patterns"] = [{**frame, "template": second}]
+        self.run_workflow("study", "paper-a", excerpt, surroundings, self.write("study.json", notes),
+                          error="句式骨架需用")
+        notes["sentence_patterns"] = [frame]
         self.run_workflow("study", "paper-a", excerpt, surroundings, self.write("study.json", notes))
 
         saved_notes = json.loads(self.run_workflow("reference-show", "another-label", "--section", "Introduction"))
-        self.assertEqual(saved_notes["studies"]["引言"][0]["excerpt"], first + "\n\n" + second)
-        self.assertIn(second, markdown.read_text(encoding="utf-8"))
+        snapshot = saved_notes["studies"]["引言"][0]
+        self.assertEqual(snapshot["excerpt"], first + "\n\n" + second)
+        self.assertEqual(snapshot["study"]["sentence_patterns"], [frame])
+        markdown_text = markdown.read_text(encoding="utf-8")
+        self.assertIn("可仿写句式", markdown_text)
+        for value in frame.values():
+            self.assertIn(value, markdown_text)
         self.assertIn("Paper B", markdown.read_text(encoding="utf-8"))
         reuse = json.loads(self.run_workflow("init", "Introduction", "paper-a", "paper-b", session="next"))
         self.assertEqual(reuse["reused_study"], ["paper-a"])
         self.assertEqual(reuse["missing_study"], ["paper-b"])
+        resumed = json.loads(self.run_workflow("show", session="next"))
+        self.assertEqual(resumed["study"]["paper-a"]["sentence_patterns"], [frame])
         discussion = json.loads(self.run_workflow("init", "讨论", "paper-a", session="next"))
         self.assertEqual(discussion["missing_study"], ["paper-a"])
         self.assertTrue(saved_copy.exists())

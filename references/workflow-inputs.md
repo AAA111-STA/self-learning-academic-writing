@@ -28,6 +28,7 @@ python scripts/workflow.py --session {session_id} study {文献标识A} {章节�
 - 文献标识用 DOI、全文链接、文件名或其他可辨认的标识。一次登记用户指定的全部范文。目标是方法时就读方法。遇到合并章节或多段式摘要时，核实对应段落的边界。（例：从 `Results and Discussion` 中提取属于结果陈述的段落。）
 - 目标章节摘录保留原有段落边界，用空行分段。整文上下文来自实际读取的目标章节之外的相关正文。两份材料都用 UTF-8，记录页码、段落、行号或其他可复核位置。先追踪研究问题、方法、证据和结论如何衔接，再选与目标章节有关的原文定位。缺材料时说明可做的局部分析与待补的整文内容。
 - 每篇记录填写 `section`、`location` 和四项目标章节分析 `expression`（语言与衔接表达）、`grammar`（语法和句型）、`organization`（章节内各段的职责和整个推进顺序）、`concision`（信息取舍和表述效率）。四项均填写 `anchor`（短原文）、`observation`（实际做法和作用）、`application`（适用语境）。
+- 有合适范例时，在 `sentence_patterns` 添加条目，每条包含 `anchor`（目标章节中实际出现的短例句）、`location`（页码、段落或其他定位）、`template`（用 `{槽位}` 替换原文特有的对象、数据或判断，保留句法骨架）、`application`（句子承担的任务及使用条件）。例如 `Compared with {baseline}, {model} yielded {direction} {metric} under {condition}.`。没有适用句式可以省略该字段。提纲里可注明哪一段适用哪种句式；授权后才为用户稿件生成仿写正文。
 - 单独填写 `paper_context`，内含 `main_line`（整篇如何论证）、`section_role`（目标章节在全篇中承担什么任务）、`connections`（它如何呼应其他章节）及 `evidence`。其中 `evidence` 是至少一条来自目标章节之外的原文定位列表，每条含 `location` 和 `anchor`。
 - 填写 `paragraph_transition`，内含 `from`、`to` 两条原文锚点及 `observation`、`application`。选择实际相邻的两个段落，解释后一段如何承接或推进前一段。单段章节（如单段摘要）分析同段中相邻的两个论证动作。
 - 程序检查材料、原文锚点和段落顺序。代理核对摘录与指定论文及其原文版本的对应关系。校验通过后，章节摘录和学习记录自动写入项目参考文献库。初始化章任务时可复用同一文献、同一章节及相同附件版本的已有记录。修改已登记的学习记录会重置提纲和开写授权。

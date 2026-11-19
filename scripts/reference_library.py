@@ -213,6 +213,16 @@ class ReferenceLibrary:
                 ]
                 for name, pattern in study["patterns"].items():
                     lines.append(f"- {PATTERN_LABELS[name]}：" + inline(pattern["observation"]))
+                sentence_patterns = study.get("sentence_patterns", [])
+                if sentence_patterns:
+                    lines += ["", "**可仿写句式**"]
+                    for pattern in sentence_patterns:
+                        lines += [
+                            "- 骨架：" + inline(pattern["template"]),
+                            "  - 适用语境：" + inline(pattern["application"]),
+                            "  - 原文定位：" + inline(pattern["location"]),
+                            "  - 学习例句：“" + inline(pattern["anchor"]) + "”",
+                        ]
                 lines += ["", "**目标章节摘录**", "", fenced_excerpt(item["excerpt"]),
                           "", "**用于理解全文的上下文**", "", fenced_excerpt(item["context"])]
         return "\n".join(lines) + "\n"
