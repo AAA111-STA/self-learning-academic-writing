@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "python3 scripts/workflow.py prompt-hook",
+            "commandWindows": "python scripts/workflow.py prompt-hook",
+            "timeout": 10,
+            "statusMessage": "检查论文写作阶段"
+          }
+        ]
+      }
+    ]
+  }
+}
