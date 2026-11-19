@@ -1,5 +1,6 @@
 import json
 import os
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 import subprocess
 import sys
@@ -288,6 +289,76 @@ class WorkflowTests(unittest.TestCase):
                 source = self.write(f"{host}.json", {"units": [{"id": "p", "text": "误差降低了。"}]})
                 self.run_workflow("translate-init", "p", "--scope", "paragraph", source, session=host)
                 self.run_workflow("check-translate", error="明确的英译指令", session=host)
+
+    def test_reference_library_preserves_sources_and_reuses_only_matching_sections(self):
+        original = Path(self.write("temporary-upload.pdf", "Version one of the reference file."))
+        reference = json.loads(self.run_workflow(
+            "reference-add", "paper-a", "--title", "Paper A", "--doi", "10.1234/example",
+            "--file", str(original),
+        ))
+        saved_copy = Path(reference["reference"]["local_files"][0]["local_path"])
+        markdown = Path(reference["reference_index"])
+        self.run_workflow("reference-add", "paper-b", "--title", "Paper B", "--source", "Publisher archive")
+        self.run_workflow("reference-add", "another-label", "--doi", "https://doi.org/10.1234/example")
+        self.run_workflow("init", "引言", "paper-a", "another-label", error="同一文献请只选一个")
+        original.unlink()
+        self.assertEqual(saved_copy.read_text(encoding="utf-8"), "Version one of the reference file.")
+        self.run_workflow("init", "引言", "paper-a", "paper-b")
+
+        first = "Earlier studies estimated regional averages."
+        second = "We examine variation within regions."
+        context = "We compared estimates across spatial units."
+        excerpt = self.write("introduction.txt", first + "\n\n" + second)
+        surroundings = self.write("context.txt", context)
+        notes = {
+            "section": "引言", "location": "Introduction, paragraphs 1–2",
+            "paper_context": {
+                "main_line": "由区域平均值切到区域内变异", "section_role": "提出问题",
+                "connections": "引出按空间单元的比较",
+                "evidence": [{"location": "Methods", "anchor": context}],
+            },
+            "paragraph_transition": {
+                "from": first, "to": second, "observation": "从已有认识推进到研究问题",
+                "application": "由研究现状引出问题",
+            },
+        }
+        for name in ("expression", "grammar", "organization", "concision"):
+            notes[name] = {"anchor": second, "observation": "用具体动词说明研究对象", "application": "引出问题"}
+        self.run_workflow("study", "paper-a", excerpt, surroundings, self.write("study.json", notes))
+
+        saved_notes = json.loads(self.run_workflow("reference-show", "another-label", "--section", "Introduction"))
+        self.assertEqual(saved_notes["studies"]["引言"][0]["excerpt"], first + "\n\n" + second)
+        self.assertIn(second, markdown.read_text(encoding="utf-8"))
+        self.assertIn("Paper B", markdown.read_text(encoding="utf-8"))
+        reuse = json.loads(self.run_workflow("init", "Introduction", "paper-a", "paper-b", session="next"))
+        self.assertEqual(reuse["reused_study"], ["paper-a"])
+        self.assertEqual(reuse["missing_study"], ["paper-b"])
+        discussion = json.loads(self.run_workflow("init", "讨论", "paper-a", session="next"))
+        self.assertEqual(discussion["missing_study"], ["paper-a"])
+        self.assertTrue(saved_copy.exists())
+
+        updated = self.write("updated.pdf", "Version two of the reference file.")
+        self.run_workflow("reference-add", "paper-a", "--file", updated)
+        new = json.loads(self.run_workflow("init", "引言", "paper-a", session="third"))
+        self.assertEqual(new["missing_study"], ["paper-a"])
+        self.assertIn("新版需重读", markdown.read_text(encoding="utf-8"))
+        self.assertTrue(saved_copy.exists())
+
+        self.run_workflow("reference-add", "paper-a", "--file", str(saved_copy))
+        restored = json.loads(self.run_workflow("init", "引言", "paper-a", session="restored"))
+        self.assertEqual(restored["reused_study"], ["paper-a"])
+        self.assertNotIn("新版需重读", markdown.read_text(encoding="utf-8"))
+
+    def test_reference_library_keeps_parallel_entries_in_one_index(self):
+        listing = json.loads(self.run_workflow("references"))
+        markdown = Path(listing["reference_index"])
+        self.assertEqual(listing["references"], [])
+        self.assertTrue(markdown.is_file())
+        identifiers = [f"paper-{number}" for number in range(6)]
+        with ThreadPoolExecutor(max_workers=4) as parallel:
+            list(parallel.map(lambda ref: self.run_workflow("reference-add", ref), identifiers))
+        listing = json.loads(self.run_workflow("references"))
+        self.assertCountEqual([entry["id"] for entry in listing["references"]], identifiers)
 
 
 if __name__ == "__main__":

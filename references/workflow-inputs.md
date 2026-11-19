@@ -18,6 +18,8 @@ python scripts/workflow.py --session {session_id} show
 
 命令示例中的花括号表示运行时替换的值。
 
+先用 `references` 创建或查看本项目的 `references.md`。作者新提供的文献用 `reference-add` 登记。后续会话保持同一论文工作目录，可按 [项目参考文献库](reference-library.md) 找回文件和已读章节。
+
 ```text
 python scripts/workflow.py --session {session_id} init 引言 {文献标识A} {文献标识B} --language zh
 python scripts/workflow.py --session {session_id} study {文献标识A} {章节摘录.txt} {整文上下文.txt} {学习记录.json}
@@ -28,7 +30,7 @@ python scripts/workflow.py --session {session_id} study {文献标识A} {章节�
 - 每篇记录填写 `section`、`location` 和四项目标章节分析 `expression`（语言与衔接表达）、`grammar`（语法和句型）、`organization`（章节内各段的职责和整个推进顺序）、`concision`（信息取舍和表述效率）。四项均填写 `anchor`（短原文）、`observation`（实际做法和作用）、`application`（适用语境）。
 - 单独填写 `paper_context`，内含 `main_line`（整篇如何论证）、`section_role`（目标章节在全篇中承担什么任务）、`connections`（它如何呼应其他章节）及 `evidence`。其中 `evidence` 是至少一条来自目标章节之外的原文定位列表，每条含 `location` 和 `anchor`。
 - 填写 `paragraph_transition`，内含 `from`、`to` 两条原文锚点及 `observation`、`application`。选择实际相邻的两个段落，解释后一段如何承接或推进前一段。单段章节（如单段摘要）分析同段中相邻的两个论证动作。
-- 程序检查材料、原文锚点和段落顺序。代理核对摘录与指定论文的对应关系，以及局部和整体分析是否成立。修改已登记的学习记录会重置提纲和开写授权。
+- 程序检查材料、原文锚点和段落顺序。代理核对摘录与指定论文及其原文版本的对应关系。校验通过后，章节摘录和学习记录自动写入项目参考文献库。初始化章任务时可复用同一文献、同一章节及相同附件版本的已有记录。修改已登记的学习记录会重置提纲和开写授权。
 
 ## 2. 设计章节逻辑
 
@@ -76,7 +78,7 @@ python scripts/workflow.py --session {session_id} revise {用户反馈.txt}
 python scripts/workflow.py --session {session_id} revise {用户反馈.txt} --references {更新后的全部文献标识}
 ```
 
-收到用户对已交稿版本的修改意见时，登记反馈，本轮稿件和提纲保留在历史记录中。仅当用户调整范文清单时才使用 `--references`。逐篇复查上一轮学习是否仍适用，并重新登记本轮学习。能复用的材料沿用，按反馈补读受影响的段落或章节。重新登记提纲后，等本轮明确开写，再完成正文、去 AI 味和复核。通过项目钩子或 `user-confirm` 收到「这版我满意」「就按这版定稿」或 `Accept this version` 时，将最新交稿标为用户已认可。后续有新意见时，仍可开启下一轮。
+收到用户对已交稿版本的修改意见时，登记反馈，本轮稿件和提纲保留在历史记录中。仅当用户调整范文清单时才使用 `--references`。复查上一轮学习是否仍适用，可用 `reuse-study {文献标识}` 将本项目已读的对应章节记录带入返修轮，或从保存的原文补读受影响内容。重新登记提纲后，等本轮明确开写，再完成正文、去 AI 味和复核。通过项目钩子或 `user-confirm` 收到「这版我满意」「就按这版定稿」或 `Accept this version` 时，将最新交稿标为用户已认可。后续有新意见时，仍可开启下一轮。
 
 ## 5. 润色已有中文稿或英文稿
 

@@ -11,6 +11,7 @@ import tempfile
 from pathlib import Path
 
 from host_hooks import CONTEXT_ONLY, HOSTS, format_context, submission
+from reference_library import ReferenceLibrary
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -327,6 +328,11 @@ def record_study(state, reference, excerpt_path, context_path, notes_path):
         "paragraph_transition": transition,
         "patterns": patterns,
     }
+    assign_study(state, reference, record)
+    return record, excerpt, context
+
+
+def assign_study(state, reference, record):
     if state["study"].get(reference) != record:
         state["study"][reference] = record
         state.pop("plan", None)
@@ -706,11 +712,6 @@ def init_chapter(data, args):
             "mode": args.mode, "section": section, "round": 1,
             "references": references, "study": {},
         }
-        if args.mode == "polish":
-            previous = data["tasks"].get(task_key("write", section), {})
-            for reference, note in previous.get("study", {}).items():
-                if reference in references and note.get("round") == current_round(previous):
-                    state["study"][reference] = {**deepcopy(note), "round": 1}
     elif (references, source, language) != (
         state["references"], state.get("source"), state.get("language"),
     ):
@@ -730,9 +731,63 @@ def init_chapter(data, args):
     return state
 
 
+def register_selected_references(library, references):
+    entries = [library.register(reference) for reference in references]
+    require(len({entry["id"] for entry in entries}) == len(entries), "同一文献请只选一个标识。")
+    return entries
+
+
+def apply_saved_study(state, reference, library, entry):
+    note = library.reusable(entry, state["section"])
+    if note is None:
+        return False
+    assign_study(state, reference, {**deepcopy(note), "round": current_round(state)})
+    return True
+
+
+def reference_details(library, entry, *, include_studies=False, section=None):
+    result = {key: value for key, value in entry.items() if key not in ("files", "sections")}
+    result["available_sections"] = [notes[-1]["section"] for notes in entry["sections"].values()]
+    files = [dict(file, local_path=str(library.root / file["path"])) for file in entry["files"]]
+    result["local_files"] = files
+    if include_studies:
+        result["studies"] = entry["sections"] if section is None else {
+            library.section_key(section): entry["sections"].get(library.section_key(section), [])
+        }
+        result["active_attachment"] = library.attachment_version(entry)
+    return result
+
+
+def manage_references(args):
+    root = Path.cwd() / WORK_DATA
+    if args.action == "reference-show":
+        library = ReferenceLibrary(root)
+        entry = library.find(args.reference)
+        require(entry, "项目目录里没有这篇文献。")
+        emit(reference_details(library, entry, include_studies=True, section=args.section))
+        return
+    with ReferenceLibrary.edit(root) as library:
+        if args.action == "reference-add":
+            entry = library.register(
+                args.reference, title=args.title, doi=args.doi,
+                source=args.source, file=args.file, note=args.note,
+            )
+            library.save()
+            emit({"reference_index": str(library.markdown), "reference": reference_details(library, entry)})
+            return
+        library.save()
+        emit({
+            "reference_index": str(library.markdown),
+            "references": [reference_details(library, entry) for entry in library.entries],
+        })
+
+
 def run(args):
     if args.action == "prompt-hook":
         prompt_hook(args.host, args.workspace)
+        return
+    if args.action in ("references", "reference-add", "reference-show"):
+        manage_references(args)
         return
     path = state_path(args.session)
     data = read_session(path)
@@ -759,8 +814,26 @@ def run(args):
         return
     if args.action == "init":
         state = init_chapter(data, args)
+        reused = []
+        with ReferenceLibrary.edit(Path.cwd() / WORK_DATA) as library:
+            entries = register_selected_references(library, state["references"])
+            if not state.get("final"):
+                missing = set(missing_study(state))
+                previous = data["tasks"].get(task_key("write", state["section"]), {})
+                for reference, entry in zip(state["references"], entries):
+                    if reference not in missing:
+                        continue
+                    if apply_saved_study(state, reference, library, entry):
+                        reused.append(reference)
+                    elif state["mode"] == "polish" and not entry["files"] and not entry["sections"]:
+                        # A fileless study created before the reference library existed.
+                        note = previous.get("study", {}).get(reference)
+                        if note and note.get("round") == current_round(previous):
+                            assign_study(state, reference, {**deepcopy(note), "round": current_round(state)})
+                            reused.append(reference)
+            library.save()
         save_state(path, data)
-        emit(status(state))
+        emit({**status(state), "reference_index": str(library.markdown), "reused_study": reused})
         return
     if args.action == "translate-init":
         state = init_translation(data, args)
@@ -803,11 +876,27 @@ def run(args):
             emit(value)
         return
     if args.action == "study":
-        record_study(state, args.reference, args.excerpt, args.context, args.notes)
+        record, excerpt, context = record_study(state, args.reference, args.excerpt, args.context, args.notes)
+        with ReferenceLibrary.edit(Path.cwd() / WORK_DATA) as library:
+            entry = library.register(args.reference)
+            library.archive(entry, state["section"], record, excerpt, context)
+            library.save()
+    elif args.action == "reuse-study":
+        require_open_round(state)
+        require(args.reference in state["references"], f"该文献未由用户指定：{args.reference}")
+        library = ReferenceLibrary(Path.cwd() / WORK_DATA)
+        entry = library.find(args.reference)
+        require(
+            entry and apply_saved_study(state, args.reference, library, entry),
+            "当前版本没有可用的对应章节记录。请读取项目里的原文并登记本节学习。",
+        )
     elif args.action == "plan":
         record_plan(state, args.input)
     elif args.action == "revise":
         record_revision(state, args.input, args.references)
+        with ReferenceLibrary.edit(Path.cwd() / WORK_DATA) as library:
+            register_selected_references(library, state["references"])
+            library.save()
     elif args.action == "check-start":
         require_start(state)
         emit(status(state))
@@ -875,6 +964,17 @@ def main():
     sub.add_parser("profile-remove").add_argument("key")
     sub.add_parser("profile-show")
     sub.add_parser("profile-confirm")
+    sub.add_parser("references", help="create or list the workspace bibliography")
+    entry = sub.add_parser("reference-add")
+    entry.add_argument("reference")
+    entry.add_argument("--title")
+    entry.add_argument("--doi")
+    entry.add_argument("--source", help="public source or URL")
+    entry.add_argument("--file", type=Path, help="user-supplied original to retain in this workspace")
+    entry.add_argument("--note")
+    show_reference = sub.add_parser("reference-show")
+    show_reference.add_argument("reference")
+    show_reference.add_argument("--section")
     init = sub.add_parser("init")
     init.add_argument("section")
     init.add_argument("references", nargs="+")
@@ -897,6 +997,7 @@ def main():
     study.add_argument("excerpt")
     study.add_argument("context")
     study.add_argument("notes")
+    sub.add_parser("reuse-study").add_argument("reference")
     revise = sub.add_parser("revise")
     revise.add_argument("input")
     revise.add_argument("--references", nargs="+")

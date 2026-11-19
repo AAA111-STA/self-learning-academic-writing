@@ -13,6 +13,7 @@ An Agent Skill for Chinese- and English-language journals. It studies the exampl
 | Capability | How it works |
 | --- | --- |
 | Study reference papers | Examine the paper's argument, the target section's role, paragraph transitions, grammar, wording, and concision. Record traceable source excerpts. |
+| Keep a reference library | Automatically create a `references.md` index with local source copies and notes organized by paper and section. Reuse them across sessions in the same workspace. |
 | Draft by section | Work on the abstract, introduction, literature review, methods, data, results, discussion, or conclusion. Present a plan and wait for an explicit start. |
 | Edit existing text | Polish Chinese or English, including text translated elsewhere. Preserve the author's meaning, facts, citations, terminology, and claim strength. |
 | Translate on request | Translate selected paragraphs one at a time or assemble a complete English manuscript. Check terminology and coverage. |
@@ -67,6 +68,7 @@ See [Agent setup and hook configuration](references/agent-hooks.md) for optional
 
 - [SKILL.md](SKILL.md) contains the writing and revision rules. [Workflow reference](references/workflow-inputs.md) describes the commands and input formats.
 - Drafts and reference notes stay under `.self-learning-academic-writing/` in the project, which Git ignores. Confirmed [author profiles](references/writing-profile.md) are stored locally in the user's home directory by default.
+- The [project reference library](references/reference-library.md) keeps local sources and section notes available when you move to another section or session.
 - From the repository root, run `python -m unittest discover -s tests` to check section recovery, preference confirmation, language workflows, and hook adapters.
 
 ## Third-party notices
