@@ -72,7 +72,7 @@ python scripts/workflow.py --session {session_id} finalize {修订稿.json}
 
 先通过 `check-start`，按 [句子与措辞规则](prose-style.md) 组织完整正文并登记初稿。使用 `read-humanizer` 读取随 Skill 打包的 `academic-humanizer`，结合本 Skill 的规则复读和修订。修订结果 JSON 提供 `text`（可交付章节）和 `review` 对象。复核记录填写 `paper_alignment`（整篇主线与跨章节关系）、`section_flow`（章节整体论证）、`paragraph_links`（段落衔接）、`sentence_links`（相邻句的承接、主题引入及逻辑跳跃的核对结果）、`language_and_facts`（语言修订与事实、数字、术语和引文核对）。返修轮还须填写 `feedback_addressed`。
 
-去 AI 味后复读最终正文。在 `review.prose_check` 中填写 `anchor`（最终正文中的一处原句或连续短段）和 `assessment`（原来哪些表达像套话、如何改回具体做法；如果保留原句，说明它如何交代依据、对象或衔接）。有多处问题时逐处修订，记录一处代表性复核即可。脚本确认记录存在、原句能在最终正文定位；句子自然与否、依据是否成立仍要对照稿件由代理判断。通过脚本输出后向用户交付本轮正文，并等待反馈。
+去 AI 味后复读最终正文。在 `review.prose_check` 中填写 `anchor`（最终正文中的一处原句或连续短段）和 `assessment`（例如如何删去套话或重复限定、如何让简称准确承接前文，或为何保留一项必要的依据、对象或限制）。有多处问题时逐处修订，记录一处代表性复核即可。脚本确认记录存在、原句能在最终正文定位；句子自然与否、依据是否成立仍要对照稿件由代理判断。通过脚本输出后向用户交付本轮正文，并等待反馈。
 
 ## 4. 收到反馈后开启下一轮
 
