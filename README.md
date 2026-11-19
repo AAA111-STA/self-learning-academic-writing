@@ -1,78 +1,78 @@
-![Self-Learning Academic Writing，手稿、批注和回转的编辑箭头](assets/cover.png)
+![Self-Learning Academic Writing cover with annotated manuscripts and a revision loop](assets/cover.png)
 
-[简体中文](README.md) · [English](README.en.md)
+[English](README.md) · [简体中文](README.zh.md)
 
 # Self-Learning Academic Writing
 
-面向中文和英文期刊的学术写作 Skill。它先学习你指定的范文，再把范文的组织方式和你的研究材料、论证思路结合起来。你可以先看提纲，明确发出指令后再起草正文，也可以润色已有稿件或按需英译。
+An Agent Skill for Chinese- and English-language journals. It studies the example papers you choose, combines what it learns with your evidence and intended argument, and proposes a section outline before it drafts. It can also edit existing manuscripts or translate Chinese into concise academic English when explicitly requested.
 
-**项目参考文献可以跨会话复用。** Skill 自动建立 [本地参考文献库](references/reference-library.md)，用 `references.md` 集中记录多篇范文、项目原文副本和已读章节的摘录与笔记。换聊天或换智能体时，打开同一个论文目录就能继续用。你明确确认的通用写作偏好则单独保存在本机个人档案。
+**Reuse references across sessions.** A [local project reference library](references/reference-library.md) creates a `references.md` index of the papers you provide, any local copies, and excerpts and reading notes by section. Open the same manuscript folder when you change sessions or agents. Writing preferences that the author explicitly confirms are saved separately in a local author profile.
 
-## 能做什么
+## What it does
 
-| 功能 | 具体做法 |
+| Capability | How it works |
 | --- | --- |
-| 学习指定范文 | 分析全文论证、目标章节的职责、段落推进、语法、措辞和简洁表达。学习记录使用可定位的原文例子。 |
-| 项目参考文献库 | 默认建一份 `references.md`，集中记录作者提供的文献、原文副本入口和按章整理的学习内容，换会话可从同一项目复用。 |
-| 按章节写作 | 覆盖摘要、引言、综述、方法、数据、结果、讨论和结论。先拟提纲，收到明确开写指令后生成正文。 |
-| 润色现稿 | 支持中文、英文及其他软件翻好的英文稿。按授权范围修改，复核事实、数值、术语、引用和结论强度。 |
-| 可选学术英译 | 明确要求后逐段或整篇翻译，统一术语、核对覆盖范围，使用简洁的学术英文。 |
-| 保存版本和偏好 | 各章的提纲、稿件和返修历史可分别恢复。个人偏好经过确认才进入跨会话档案。 |
+| Study reference papers | Examine the paper's argument, the target section's role, paragraph transitions, grammar, wording, and concision. Record traceable source excerpts. |
+| Keep a reference library | Automatically create a `references.md` index with local source copies and notes organized by paper and section. Reuse them across sessions in the same workspace. |
+| Draft by section | Work on the abstract, introduction, literature review, methods, data, results, discussion, or conclusion. Present a plan and wait for an explicit start. |
+| Edit existing text | Polish Chinese or English, including text translated elsewhere. Preserve the author's meaning, facts, citations, terminology, and claim strength. |
+| Translate on request | Translate selected paragraphs one at a time or assemble a complete English manuscript. Check terminology and coverage. |
+| Resume work and save preferences | Switch between sections without losing earlier plans, drafts, or revisions. Save personal preferences with the author's confirmation. |
 
-## 快速开始
+## Quick start
 
-1. 克隆仓库，或从 GitHub 下载并解压 ZIP。保留完整的 `self-learning-academic-writing` 目录。
+1. Clone the repository or download and extract the GitHub ZIP. Keep the entire `self-learning-academic-writing` directory.
 
 ```sh
 git clone https://github.com/AAA111-STA/self-learning-academic-writing.git
 ```
 
-2. 从下表选择安装入口。宿主没有 Skill 安装入口时，可以让它读取完整目录的 [SKILL.md](SKILL.md)。只支持聊天文字时，可以粘贴 [便携聊天版](references/portable-chat.md)。
-3. 完整流程需要 Python 3.9+ 和本地文件访问。告诉智能体目标章节、输出语言，提供范文全文或相关章节与必要上下文，再提供你的研究材料。
-4. 审阅提纲或润色方案后，下达明确指令。启用原生钩子时可在聊天中下达；采用终端确认时，智能体会给出对应命令。
+2. Install using your host's entry below. If your host can read files, you can also point it to [SKILL.md](SKILL.md) in the full directory. In a text-only chat, paste the [portable chat edition](references/portable-chat.en.md).
+3. The full workflow needs Python 3.9+ and local file access. Give the agent the target section, output language, example papers or relevant excerpts with context, and your research materials.
+4. Review the outline or revision plan, then explicitly tell the agent to start. An installed hook can receive the instruction in chat. Hosts without the hook can use terminal confirmation.
 
-## 兼容平台
+## Agent compatibility
 
-Skill 加载和聊天钩子是两项能力。下表为已核对的入口。本项目提供的原生适配可从宿主接收用户指令，终端确认可以在能运行 Python 的宿主上使用。仅能聊天的宿主使用便携版。
+Skill discovery and chat hooks are separate capabilities. The native adapters listed below receive submitted user instructions. The terminal path works on hosts with local Python, and the portable edition can be pasted into a text-only chat.
 
-| 平台 | 安装或加载完整目录 | 接收明确指令 |
+| Agent | Install or load the directory | Confirmation path |
 | --- | --- | --- |
-| Codex | 项目的 `.agents/skills/`，或从本仓库目录加载 | 原生钩子或终端 |
-| Claude Code | 项目的 `.claude/skills/` | 原生钩子或终端 |
-| Qwen Code | 项目的 `.qwen/skills/` | 原生钩子，读取带提交来源的用户文本，或终端 |
-| Kimi Code CLI | 从 [Agent Skills](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html) 指定的目录加载 | 原生钩子或终端 |
-| 智谱 ZCode | 用户 `~/.zcode/skills/`，在设置中刷新技能 | 原生钩子或终端 |
-| Google Gemini CLI | `gemini skills install https://github.com/AAA111-STA/self-learning-academic-writing.git` | 钩子可提示流程状态，授权用终端或可信通用接入 |
-| Google Antigravity | 项目的 `.agents/skills/` | 原生钩子或终端 |
-| 腾讯 WorkBuddy | 技能管理中上传本地技能包 | 有本地 Python 时用终端，否则用聊天确认 |
-| DeepSeek Harness | 项目的 `.dsh/skills/` 或 `.agents/skills/` | 兼容桥钩子可提示状态，授权用终端或可信通用接入 |
-| TRAE | 项目的 `.trae/skills/` | 终端或通用接入 |
-| OpenCode | 项目的 `.opencode/skills/` | 终端或通用接入 |
-| 其他智能体 | 导入完整目录、读取 `SKILL.md`，或使用便携聊天版 | 通用接入、终端或聊天确认，视宿主能力而定 |
+| Codex | Project `.agents/skills/` or load from this checkout | Native hook or terminal |
+| Claude Code | Project `.claude/skills/` | Native hook or terminal |
+| Qwen Code | Project `.qwen/skills/` | Native hook using declared user submissions, or terminal |
+| Kimi Code CLI | A directory from its [Agent Skills documentation](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html) | Native hook or terminal |
+| ZCode | User `~/.zcode/skills/`, then refresh Skills in Settings | Native hook or terminal |
+| Google Gemini CLI | `gemini skills install https://github.com/AAA111-STA/self-learning-academic-writing.git` | Optional status hook; authorize via terminal or a trusted generic integration |
+| Google Antigravity | Project `.agents/skills/` | Native hook or terminal |
+| Tencent WorkBuddy | Upload a local skill package in Skills | Terminal with local Python, otherwise chat confirmation |
+| DeepSeek Harness | Project `.dsh/skills/` or `.agents/skills/` | Optional bridge status hook; authorize via terminal or a trusted generic integration |
+| TRAE | Project `.trae/skills/` | Terminal or generic integration |
+| OpenCode | Project `.opencode/skills/` | Terminal or generic integration |
+| Other agents | Import the directory, read `SKILL.md`, or use the portable chat edition | Generic integration, terminal, or chat according to host capabilities |
 
-配置步骤和官方文档见 [智能体接入与钩子](references/agent-hooks.md)。原生钩子可选，用户也可以在项目目录里用 `user-confirm` 或 `profile-confirm` 确认对应操作。
+See [Agent setup and hook configuration](references/agent-hooks.md) for optional setup and the official documentation. `user-confirm` and `profile-confirm` also work when you choose terminal confirmation.
 
-## 可以这样说
+## Example requests
 
-> 使用 self-learning-academic-writing。学习这两篇范文的讨论部分，结合我给的结果先列讨论提纲。等我说「开始写」再写正文。
+> Use self-learning-academic-writing. Study the discussion sections of these papers and outline my Discussion using the results I supplied. Wait for “Start writing.”
 
-> 按英文期刊的写法润色这版现稿，先给修改方案，保留原意和数据。
+> Polish this draft for an English-language journal. Propose edits first and preserve the meaning and data.
 
-> 把下面这段翻译成英文：……
+> Translate this paragraph into English: …
 
-> 把这篇论文翻译成英文。
+> Translate the whole manuscript into English.
 
-> 我希望以后比较模型表现都写明验证条件。请提炼成一条个人偏好，给我确认。
+> Whenever I compare models, I want to state the validation conditions. Prepare that as a writing preference for me to confirm.
 
-## 文件与隐私
+## Files and local data
 
-- [SKILL.md](SKILL.md) 定义工作流程和各章节的写法，[运行门禁与输入](references/workflow-inputs.md) 说明命令和输入格式。
-- 项目草稿与学习记录保存在项目的 `.self-learning-academic-writing/`，由 Git 忽略。经确认的 [个人档案](references/writing-profile.md) 默认保存在本机用户目录。
-- 同一论文的范文保存在 [项目参考文献库](references/reference-library.md)，换章节或换聊天时先查本地目录和已有原文。
-- 在仓库根目录运行 `python -m unittest discover -s tests` 可核对章节恢复、偏好保存、语言模式及钩子。
+- [SKILL.md](SKILL.md) contains the writing and revision rules. [Workflow reference](references/workflow-inputs.md) describes the commands and input formats.
+- Drafts and reference notes stay under `.self-learning-academic-writing/` in the project, which Git ignores. Confirmed [author profiles](references/writing-profile.md) are stored locally in the user's home directory by default.
+- The [project reference library](references/reference-library.md) keeps local sources and section notes available when you move to another section or session.
+- From the repository root, run `python -m unittest discover -s tests` to check section recovery, preference confirmation, language workflows, and hook adapters.
 
-## 第三方来源与许可
+## Third-party notices
 
-仓库随附 AIScientists-Dev 的 `academic-humanizer` v0.3.3 原始指南和 MIT 许可证。 [上游项目](https://github.com/AIScientists-Dev/academic-humanizer) · [随附许可](references/vendor/academic-humanizer/LICENSE)
+The repository includes the unmodified guide and [MIT license](references/vendor/academic-humanizer/LICENSE) of [academic-humanizer](https://github.com/AIScientists-Dev/academic-humanizer) v0.3.3 by AIScientists-Dev.
 
-润色和英译指南中的段落与证据检查参考 Master-cai 基于彭思达教授笔记整理的 [Research Paper Writing Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills)。英译授权、范围和忠实性由本 Skill 的流程定义。 [随附许可](references/vendor/research-paper-writing/LICENSE)
+The editing and translation guides adapt paragraph and evidence checks from Master-cai's [Research Paper Writing Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills), based on Prof. Peng Sida's study notes, under the [MIT license](references/vendor/research-paper-writing/LICENSE).
