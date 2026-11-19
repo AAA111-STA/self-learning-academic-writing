@@ -6,7 +6,7 @@
 
 An Agent Skill for Chinese- and English-language journals. It studies the example papers you choose, combines what it learns with your evidence and intended argument, and proposes a section outline before it drafts. It can also edit existing manuscripts or translate Chinese into concise academic English when explicitly requested.
 
-**It learns from both papers and authors.** Reference notes, outlines, and manuscript versions stay with each section. General writing preferences that an author explicitly confirms can be saved locally and reused in a later session.
+**Reuse references across sessions.** A [local project reference library](references/reference-library.md) creates a `references.md` index of the papers you provide, any local copies, and excerpts and reading notes by section. Open the same manuscript folder when you change sessions or agents. Writing preferences that the author explicitly confirms are saved separately in a local author profile.
 
 ## What it does
 
