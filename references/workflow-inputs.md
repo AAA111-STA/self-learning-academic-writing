@@ -51,7 +51,7 @@ python scripts/workflow.py --session {session_id} plan {提纲.json}
 | `paragraphs` | 有序段落列表。各段填写 `point`（表达重点）、`evidence`（当前研究或已有可信依据）、`link`（和后文的衔接，末段可填收束作用） |
 | `feedback_response` | 返修轮必填。说明用户反馈涉及哪些层次，以及本轮将怎样处理 |
 
-登记成功后，向用户展示章节逻辑及选择依据。证据或研究结果不足处标记待补。用户的开写授权对应当时已登记的提纲及范文学习版本。
+登记成功后，向用户展示章节逻辑及选择依据。涉及步骤衔接时，在 `link` 写明前一步的产出怎样被后一步使用，或两步各回答什么问题。证据或研究结果不足处标记待补。用户的开写授权对应当时已登记的提纲及范文学习版本。
 
 ## 3. 等待用户开写，然后起草与修订
 
@@ -70,7 +70,9 @@ python scripts/workflow.py --session {session_id} read-humanizer
 python scripts/workflow.py --session {session_id} finalize {修订稿.json}
 ```
 
-先通过 `check-start`，按 [句子与措辞规则](prose-style.md) 组织完整正文并登记初稿。使用 `read-humanizer` 读取随 Skill 打包的 `academic-humanizer`，结合本 Skill 的规则复读和修订。修订结果 JSON 提供 `text`（可交付章节）和 `review` 对象。复核记录填写 `paper_alignment`（整篇主线与跨章节关系）、`section_flow`（章节整体论证）、`paragraph_links`（段落衔接）、`sentence_links`（相邻句的承接、主题引入及逻辑跳跃的核对结果）、`language_and_facts`（语言修订与事实、数字、术语和引文核对）。返修轮还须填写 `feedback_addressed`。通读后无需改动时，记录判断依据。通过脚本输出后向用户交付本轮正文，并等待反馈。
+先通过 `check-start`，按 [句子与措辞规则](prose-style.md) 组织完整正文并登记初稿。使用 `read-humanizer` 读取随 Skill 打包的 `academic-humanizer`，结合本 Skill 的规则复读和修订。修订结果 JSON 提供 `text`（可交付章节）和 `review` 对象。复核记录填写 `paper_alignment`（整篇主线与跨章节关系）、`section_flow`（章节整体论证）、`paragraph_links`（段落衔接）、`sentence_links`（相邻句的承接、主题引入及逻辑跳跃的核对结果）、`language_and_facts`（语言修订与事实、数字、术语和引文核对）。返修轮还须填写 `feedback_addressed`。
+
+去 AI 味后复读最终正文。在 `review.prose_check` 中填写 `anchor`（最终正文中的一处原句或连续短段）和 `assessment`（原来哪些表达像套话、如何改回具体做法；如果保留原句，说明它如何交代依据、对象或衔接）。有多处问题时逐处修订，记录一处代表性复核即可。脚本确认记录存在、原句能在最终正文定位；句子自然与否、依据是否成立仍要对照稿件由代理判断。通过脚本输出后向用户交付本轮正文，并等待反馈。
 
 ## 4. 收到反馈后开启下一轮
 

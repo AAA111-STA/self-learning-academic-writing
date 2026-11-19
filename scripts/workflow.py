@@ -952,11 +952,14 @@ def run(args):
         )
         review = read_object(args.input)
         checks = object_fields(review, "review", REVIEW_FIELDS)
+        final = required_text(review, "text")
+        prose_check = object_fields(review["review"], "prose_check", ("anchor", "assessment"))
+        require(normal_text(prose_check["anchor"]) in normal_text(final), "prose_check 的原句须在最终正文中。")
+        checks["prose_check"] = prose_check
         if state.get("mode") == "polish":
             checks.update(object_fields(review, "review", ("source_fidelity",)))
         if state.get("feedback"):
             checks.update(object_fields(review, "review", ("feedback_addressed",)))
-        final = required_text(review, "text")
         state["final"] = {"text": final, "review": checks}
         save_state(path, data)
         print(final)

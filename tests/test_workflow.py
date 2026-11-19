@@ -134,10 +134,19 @@ class WorkflowTests(unittest.TestCase):
             "language_and_facts": "数值和单位未改", "source_fidelity": "与原文结论一致",
         }
         text = Path(amended).read_text(encoding="utf-8")
+        self.run_workflow("finalize", self.write("revision.json", {"text": text, "review": review}),
+                          error="缺少 prose_check 记录")
+        review["prose_check"] = {"anchor": source, "assessment": "保留空间验证这一限定条件。"}
+        self.run_workflow("finalize", self.write("revision.json", {"text": text, "review": review}),
+                          error="prose_check 的原句须在最终正文中")
+        self.assertFalse(self.status()["final_ready"])
+        review["prose_check"]["anchor"] = "The mean error was 4 m under spatial validation."
         self.assertEqual(
             self.run_workflow("finalize", self.write("revision.json", {"text": text, "review": review})).strip(),
             text,
         )
+        self.assertEqual(json.loads(self.run_workflow("show"))["final"]["review"]["prose_check"],
+                         review["prose_check"])
         self.run_workflow("resume", "结果")
         self.assertEqual(self.status()["language"], "zh")
         self.assertFalse(self.status()["final_ready"])
