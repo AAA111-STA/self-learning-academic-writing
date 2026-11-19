@@ -10,6 +10,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from host_hooks import CONTEXT_ONLY, HOSTS, format_context, submission
+
 
 ROOT = Path(__file__).resolve().parent.parent
 SKILL_NAME = "self-learning-academic-writing"
@@ -570,32 +572,54 @@ def record_user_decision(state, prompt, receipt):
     return None
 
 
-def hook_context(message):
-    emit({"hookSpecificOutput": {
-        "hookEventName": "UserPromptSubmit",
-        "additionalContext": message,
-    }})
-
-
-def prompt_hook():
-    event = json.load(sys.stdin)
-    require(event.get("hook_event_name") == "UserPromptSubmit", "需要 UserPromptSubmit 事件。")
-    session = required_text(event, "session_id")
-    turn = required_text(event, "turn_id")
-    path = state_path(session, event.get("cwd"))
+def prompt_hook(host, workspace=None):
+    event = submission(json.load(sys.stdin), host)
+    if event is None:
+        return
+    session = required_text(event, "session")
+    workspace_candidates = event.get("workspaces") or [event.get("cwd") or Path.cwd()]
+    workspaces = [Path(location).resolve() for location in workspace_candidates]
+    if workspace is not None:
+        workspace = Path(workspace).resolve()
+        if not any(location.is_relative_to(workspace) for location in workspaces):
+            return
+    path = state_path(session, workspace or workspaces[0])
     prefix = f"{SKILL_NAME} 会话 {session}。"
     data = read_session(path)
-    prompt = event.get("prompt", "")
+    prompt = event["prompt"]
+
+    def hook_context(message):
+        response = format_context(host, prefix + message)
+        if isinstance(response, str):
+            print(response)
+        else:
+            emit(response)
+
+    if host in CONTEXT_ONLY:
+        state = data["tasks"].get(data["active"])
+        context = "使用此 Skill 时，请用终端的 user-confirm 或 profile-confirm 确认。"
+        if state:
+            context += " 当前阶段：" + json.dumps(status(state), ensure_ascii=False)
+        hook_context(context)
+        return
+    if host == "antigravity":
+        # PreInvocation can report the same last submitted user text many times.
+        fingerprint = digest(prompt)
+        if data.get("last_antigravity_input") == fingerprint:
+            return
+        data["last_antigravity_input"] = fingerprint
+        save_state(path, data)
+
     try:
         preference_result = profile_decision(data, prompt)
     except GateError as error:
-        hook_context(prefix + str(error))
+        hook_context(str(error))
         return
     if preference_result:
         save_state(path, data)
-        hook_context(prefix + preference_result)
+        hook_context(preference_result)
         return
-    receipt = {"source": "codex", "turn": turn}
+    receipt = {"source": host, "turn": event["turn"]}
     scope, new_target = translation_request(prompt)
     previous_pending = data.pop("pending_translation", None)
     state = data["tasks"].get(data["active"], {})
@@ -604,23 +628,23 @@ def prompt_hook():
             data["pending_translation"] = {"scope": scope, "receipt": receipt}
         if previous_pending or scope != "active":
             save_state(path, data)
-        hook_context(prefix + "已收到明确英译请求。按用户指定范围登记原文。范围未明时先确认逐段或整篇。")
+        hook_context("已收到明确英译请求。按用户指定范围登记原文。范围未明时先确认逐段或整篇。")
         return
     if data["active"] is None:
         if previous_pending:
             save_state(path, data)
-        hook_context(prefix + "使用该 Skill 时，先登记用户指定范文和写作章节。")
+        hook_context("使用该 Skill 时，先登记用户指定范文和写作章节。")
         return
     try:
         decision = record_user_decision(state, prompt, receipt)
     except GateError as error:
         if previous_pending:
             save_state(path, data)
-        hook_context(prefix + str(error))
+        hook_context(str(error))
         return
     if decision:
         save_state(path, data)
-        hook_context(prefix + decision)
+        hook_context(decision)
         return
     has_work = state.get("translated") if state.get("mode") == "translate" else state.get("draft")
     if state.get("authorization") and not has_work:
@@ -628,7 +652,7 @@ def prompt_hook():
         previous_pending = True
     if previous_pending:
         save_state(path, data)
-    hook_context(prefix + "当前阶段：" + json.dumps(status(state), ensure_ascii=False))
+    hook_context("当前阶段：" + json.dumps(status(state), ensure_ascii=False))
 
 
 def terminal_confirmation(state):
@@ -708,7 +732,7 @@ def init_chapter(data, args):
 
 def run(args):
     if args.action == "prompt-hook":
-        prompt_hook()
+        prompt_hook(args.host, args.workspace)
         return
     path = state_path(args.session)
     data = read_session(path)
@@ -843,6 +867,9 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--session", help="stable writing session identifier")
     sub = parser.add_subparsers(dest="action", required=True)
+    hook = sub.add_parser("prompt-hook")
+    hook.add_argument("--host", choices=HOSTS, default="codex")
+    hook.add_argument("--workspace", type=Path, help="only accept sessions in this workspace")
     sub.add_parser("profile-use").add_argument("alias")
     sub.add_parser("profile-propose").add_argument("input")
     sub.add_parser("profile-remove").add_argument("key")
@@ -877,7 +904,7 @@ def main():
         sub.add_parser(action).add_argument("input")
     for action in (
         "status", "chapters", "show", "check-start", "read-editor", "read-humanizer",
-        "check-translate", "read-translator", "next-translation", "user-confirm", "prompt-hook",
+        "check-translate", "read-translator", "next-translation", "user-confirm",
     ):
         sub.add_parser(action)
     try:

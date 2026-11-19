@@ -8,6 +8,7 @@ import unittest
 
 
 WORKFLOW = Path(__file__).resolve().parents[1] / "scripts" / "workflow.py"
+HOOK_CONFIG = WORKFLOW.with_name("host_hooks.py")
 
 
 class WorkflowTests(unittest.TestCase):
@@ -190,6 +191,103 @@ class WorkflowTests(unittest.TestCase):
         })
         step = json.loads(self.run_workflow("save-translation", "p", result))
         self.assertEqual(step["text"], "The mean error decreased.")
+
+    def test_host_hooks_feed_the_same_translation_gate(self):
+        command = "请把下面这段翻译成英文：平均误差降低了。"
+        source = self.write("paragraph.json", {"units": [{"id": "p", "text": "平均误差降低了。"}]})
+        for host in ("codex", "claude", "qwen", "kimi", "zcode", "generic"):
+            with self.subTest(host=host):
+                payload = {
+                    "hook_event_name": "UserPromptSubmit", "session_id": host,
+                    "cwd": str(self.workspace), "prompt": command,
+                }
+                if host == "qwen":
+                    payload["prompt"] = "Legacy model-bound text"
+                    payload["submitted_prompt"] = command
+                if host == "generic":
+                    payload["role"] = "user"
+                result = self.run_workflow("prompt-hook", "--host", host, stdin=json.dumps(payload))
+                if host == "kimi":
+                    self.assertIn("已收到明确英译请求", result)
+                elif host == "generic":
+                    self.assertIn("已收到明确英译请求", json.loads(result)["additional_context"])
+                else:
+                    self.assertIn("UserPromptSubmit", json.loads(result)["hookSpecificOutput"]["hookEventName"])
+                self.run_workflow("translate-init", "p", "--scope", "paragraph", source, session=host)
+                self.run_workflow("check-translate", session=host)
+
+    def test_untrusted_or_out_of_scope_hook_inputs_do_not_authorize(self):
+        command = "把这段翻译成英文"
+        source = self.write("untrusted.json", {"units": [{"id": "p", "text": "误差降低。"}]})
+        for host, fields, options in (
+            ("qwen", {}, []),
+            ("generic", {"role": "assistant"}, []),
+            ("kimi", {"cwd": str(self.workspace.parent)}, ["--workspace", str(self.workspace)]),
+        ):
+            with self.subTest(host=host):
+                message = json.dumps({
+                    "hook_event_name": "UserPromptSubmit", "session_id": host,
+                    "cwd": str(self.workspace), "prompt": command, **fields,
+                })
+                self.assertEqual(
+                    self.run_workflow("prompt-hook", "--host", host, *options, stdin=message), "",
+                )
+                self.run_workflow("translate-init", "p", "--scope", "paragraph", source, session=host)
+                self.run_workflow("check-translate", error="明确的英译指令", session=host)
+
+    def test_hook_generator_outputs_scoped_host_settings(self):
+        for host in ("codex", "claude", "qwen", "kimi", "zcode", "antigravity", "gemini", "deepseek"):
+            with self.subTest(host=host):
+                config = subprocess.check_output(
+                    [sys.executable, str(HOOK_CONFIG), host], cwd=self.workspace, encoding="utf-8",
+                )
+                if host == "kimi":
+                    self.assertIn('event = "UserPromptSubmit"', config)
+                elif host == "antigravity":
+                    config = json.loads(config)["academic-writing"]["PreInvocation"][0]["command"]
+                else:
+                    hooks = json.loads(config)["hooks"]
+                    if host == "zcode":
+                        self.assertIs(hooks["enabled"], True)
+                    event = "BeforeAgent" if host == "gemini" else "UserPromptSubmit"
+                    config = hooks[event][0]["hooks"][0]["command"]
+                self.assertIn(f"--host {host} --workspace", config)
+                self.assertIn(self.workspace.as_posix(), config)
+
+    def test_antigravity_ignores_repeated_reports_of_the_last_user_input(self):
+        command = "把这段翻译成英文"
+        context = {
+            "conversationId": "antigravity",
+            "workspacePaths": [str(self.workspace)],
+            "lastUserInput": command,
+        }
+        source = self.write("antigravity.json", {"units": [{"id": "p", "text": "平均误差降低了。"}]})
+        result = self.run_workflow(
+            "prompt-hook", "--host", "antigravity", stdin=json.dumps({**context, "invocationNum": 1}),
+        )
+        self.assertIn("已收到明确英译请求", json.loads(result)["injectSteps"][0]["ephemeralMessage"])
+        self.run_workflow("translate-init", "first", "--scope", "paragraph", source, session="antigravity")
+        self.run_workflow("check-translate", session="antigravity")
+        duplicate = self.run_workflow(
+            "prompt-hook", "--host", "antigravity", stdin=json.dumps({**context, "invocationNum": 2}),
+        )
+        self.assertEqual(duplicate, "")
+        self.run_workflow("translate-init", "second", "--scope", "paragraph", source, session="antigravity")
+        self.run_workflow("check-translate", error="明确的英译指令", session="antigravity")
+
+    def test_context_only_hooks_never_authorize_a_continuation(self):
+        for host, event in (("gemini", "BeforeAgent"), ("deepseek", "UserPromptSubmit")):
+            with self.subTest(host=host):
+                result = self.run_workflow("prompt-hook", "--host", host, stdin=json.dumps({
+                    "hook_event_name": event,
+                    "session_id": host,
+                    "cwd": str(self.workspace),
+                    "prompt": "把这段翻译成英文",
+                }))
+                self.assertIn("user-confirm", json.loads(result)["hookSpecificOutput"]["additionalContext"])
+                source = self.write(f"{host}.json", {"units": [{"id": "p", "text": "误差降低了。"}]})
+                self.run_workflow("translate-init", "p", "--scope", "paragraph", source, session=host)
+                self.run_workflow("check-translate", error="明确的英译指令", session=host)
 
 
 if __name__ == "__main__":

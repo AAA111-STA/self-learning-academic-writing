@@ -1,31 +1,76 @@
-# self-learning-academic-writing
+![Self-Learning Academic Writing，手稿、批注和回转的编辑箭头](assets/cover.png)
 
-面向中文和英文期刊的学术写作 Skill。它在每次写作前学习作者指定的范文，也可在本机保存作者明确确认的个人写作偏好。各章分别存档，可随时切换。支持写作、润色和由作者明确发起的逐段或整篇英译。
+[简体中文](README.md) · [English](README.en.md)
 
-## 使用
+# Self-Learning Academic Writing
 
-欢迎下载、安装和使用完整 Skill。可以下载仓库 ZIP，也可以用 Git 获取：
+面向中文和英文期刊的学术写作 Skill。它先学习你指定的范文，再把范文的组织方式和你的研究材料、论证思路结合起来。你可以先看提纲，明确发出指令后再起草正文，也可以润色已有稿件或按需英译。
+
+**两种学习会保留在适合的位置。** 论文范文分析、提纲和历次稿件按章节存档。你明确确认的通用写作偏好可以保存到本机个人档案，新会话仍能选用。
+
+## 能做什么
+
+| 功能 | 具体做法 |
+| --- | --- |
+| 学习指定范文 | 分析全文论证、目标章节的职责、段落推进、语法、措辞和简洁表达。学习记录使用可定位的原文例子。 |
+| 按章节写作 | 覆盖摘要、引言、综述、方法、数据、结果、讨论和结论。先拟提纲，收到明确开写指令后生成正文。 |
+| 润色现稿 | 支持中文、英文及其他软件翻好的英文稿。按授权范围修改，复核事实、数值、术语、引用和结论强度。 |
+| 可选学术英译 | 明确要求后逐段或整篇翻译，统一术语、核对覆盖范围，使用简洁的学术英文。 |
+| 保存版本和偏好 | 各章的提纲、稿件和返修历史可分别恢复。个人偏好经过确认才进入跨会话档案。 |
+
+## 快速开始
+
+1. 克隆仓库，或从 GitHub 下载并解压 ZIP。保留完整的 `self-learning-academic-writing` 目录。
 
 ```sh
 git clone https://github.com/AAA111-STA/self-learning-academic-writing.git
 ```
 
-1. 保留整个 `self-learning-academic-writing` 目录。支持 Agent Skills 的宿主可按其方式加载 [SKILL.md](SKILL.md)。能够读取项目文件并执行 Python 的通用智能体，也可以直接按该入口执行。
-2. 准备 Python 3.9 或更新版本。给智能体目标章节、范文原文和已有研究材料。它会先阅读并提交提纲。
-3. 在已信任项目钩子的 Codex 聊天里发送与任务相符的指令，例如「开始写」「开始润色」「把这段翻译成英文」。其他宿主可在终端运行智能体提供的 `user-confirm` 命令，再输入明确指令。
+2. 从下表选择安装入口。宿主没有 Skill 安装入口时，可以让它读取完整目录的 [SKILL.md](SKILL.md)。只支持聊天文字时，可以粘贴 [便携聊天版](references/portable-chat.md)。
+3. 完整流程需要 Python 3.9+ 和本地文件访问。告诉智能体目标章节、输出语言，提供范文全文或相关章节与必要上下文，再提供你的研究材料。
+4. 审阅提纲或润色方案后，下达明确指令。启用原生钩子时可在聊天中下达；采用终端确认时，智能体会给出对应命令。
 
-完整门禁依赖宿主能读取项目文件和运行本地脚本。只支持聊天、无法执行 Python 的宿主可阅读写作规则，其会话无法运行代码门禁。想用 Codex 聊天钩子时，从本仓库根目录打开项目并审阅 [项目配置](.codex/hooks.json)。信任钩子后，配置命令从该目录运行。通用命令及材料格式见 [运行门禁与输入](references/workflow-inputs.md)。
+## 兼容平台
 
-本地学习记录、研究材料和历次稿件应放在工作目录的 `.self-learning-academic-writing/` 下。仓库忽略这个目录。经作者确认的 [个人写作档案](references/writing-profile.md) 默认保存在本机用户目录。
+Skill 加载和聊天钩子是两项能力。下表为已核对的入口。本项目提供的原生适配可从宿主接收用户指令，终端确认可以在能运行 Python 的宿主上使用。仅能聊天的宿主使用便携版。
 
-可在目录根运行 `python -m unittest discover -s tests`，核对章节恢复、偏好保存、润色和英译门禁。
+| 平台 | 安装或加载完整目录 | 接收明确指令 |
+| --- | --- | --- |
+| Codex | 项目的 `.agents/skills/`，或从本仓库目录加载 | 原生钩子或终端 |
+| Claude Code | 项目的 `.claude/skills/` | 原生钩子或终端 |
+| Qwen Code | 项目的 `.qwen/skills/` | 原生钩子，读取带提交来源的用户文本，或终端 |
+| Kimi Code CLI | 从 [Agent Skills](https://www.kimi.com/code/docs/en/kimi-code-cli/customization/skills.html) 指定的目录加载 | 原生钩子或终端 |
+| 智谱 ZCode | 用户 `~/.zcode/skills/`，在设置中刷新技能 | 原生钩子或终端 |
+| Google Gemini CLI | `gemini skills install https://github.com/AAA111-STA/self-learning-academic-writing.git` | 钩子可提示流程状态，授权用终端或可信通用接入 |
+| Google Antigravity | 项目的 `.agents/skills/` | 原生钩子或终端 |
+| 腾讯 WorkBuddy | 技能管理中上传本地技能包 | 有本地 Python 时用终端，否则用聊天确认 |
+| DeepSeek Harness | 项目的 `.dsh/skills/` 或 `.agents/skills/` | 兼容桥钩子可提示状态，授权用终端或可信通用接入 |
+| TRAE | 项目的 `.trae/skills/` | 终端或通用接入 |
+| OpenCode | 项目的 `.opencode/skills/` | 终端或通用接入 |
+| 其他智能体 | 导入完整目录、读取 `SKILL.md`，或使用便携聊天版 | 通用接入、终端或聊天确认，视宿主能力而定 |
 
-## English
+配置步骤和官方文档见 [智能体接入与钩子](references/agent-hooks.md)。原生钩子可选，用户也可以在项目目录里用 `user-confirm` 或 `profile-confirm` 确认对应操作。
 
-This skill supports writing and editing for Chinese- and English-language journals. It studies author-selected papers, keeps independent section histories, and can reuse writing preferences that each author explicitly saves. English translation is optional and requires an explicit request for selected paragraphs or the whole manuscript. Hosts with local files and Python 3.9+ can run the workflow. Codex can receive commands through its optional project hook. Other hosts use the terminal. Load [SKILL.md](SKILL.md) with the entire directory available.
+## 可以这样说
 
-## Third-party notices
+> 使用 self-learning-academic-writing。学习这两篇范文的讨论部分，结合我给的结果先列讨论提纲。等我说「开始写」再写正文。
 
-The repository bundles `academic-humanizer` v0.3.3 by AIScientists-Dev. Its writing instructions and MIT license are included without edits. [Upstream project](https://github.com/AIScientists-Dev/academic-humanizer), [bundled license](references/vendor/academic-humanizer/LICENSE).
+> 按英文期刊的写法润色这版现稿，先给修改方案，保留原意和数据。
 
-The editing and English translation guides use paragraph and evidence checks adapted from [Research Paper Writing Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills) by Master-cai, based on Prof. Peng Sida's study notes, under [MIT](references/vendor/research-paper-writing/LICENSE). This skill defines its own translation authorization, scope and fidelity rules.
+> 把下面这段翻译成英文：……
+
+> 把这篇论文翻译成英文。
+
+> 我希望以后比较模型表现都写明验证条件。请提炼成一条个人偏好，给我确认。
+
+## 文件与隐私
+
+- [SKILL.md](SKILL.md) 定义工作流程和各章节的写法，[运行门禁与输入](references/workflow-inputs.md) 说明命令和输入格式。
+- 项目草稿与学习记录保存在项目的 `.self-learning-academic-writing/`，由 Git 忽略。经确认的 [个人档案](references/writing-profile.md) 默认保存在本机用户目录。
+- 在仓库根目录运行 `python -m unittest discover -s tests` 可核对章节恢复、偏好保存、语言模式及钩子。
+
+## 第三方来源与许可
+
+仓库随附 AIScientists-Dev 的 `academic-humanizer` v0.3.3 原始指南和 MIT 许可证。 [上游项目](https://github.com/AIScientists-Dev/academic-humanizer) · [随附许可](references/vendor/academic-humanizer/LICENSE)
+
+润色和英译指南中的段落与证据检查参考 Master-cai 基于彭思达教授笔记整理的 [Research Paper Writing Skills](https://github.com/Master-cai/Research-Paper-Writing-Skills)。英译授权、范围和忠实性由本 Skill 的流程定义。 [随附许可](references/vendor/research-paper-writing/LICENSE)

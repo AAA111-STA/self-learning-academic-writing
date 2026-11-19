@@ -4,7 +4,7 @@
 
 需要 Python 3.9 或更新版本。以下示例从 Skill checkout 根目录执行。若 Skill 安装在其他位置，保持科研项目根目录作为命令的当前目录，把 `scripts/workflow.py` 替换成 Skill 中该脚本的完整路径。工作记录写到当前目录的 `.self-learning-academic-writing/runs/`。论文摘录、研究材料和临时 JSON 可放在 `.self-learning-academic-writing/inputs/`。更名前已有的会话记录可从旧目录恢复。跨会话写法偏好参见 [个人写作档案](writing-profile.md)。
 
-启用项目钩子时使用 Codex 提供的 `session_id`。其他宿主选择可复用的会话标识，例如 `paper-01`。同一论文的章节使用同一个标识。各章节和模式分别存档，一个会话可以存多章，每次操作当前选中的章节或翻译任务。同一章节的多轮反馈通过 `revise` 保留已经交付的版本。
+启用钩子时使用其回传给智能体的会话标识。没有钩子时选择可复用的标识，例如 `paper-01`。同一论文的章节使用同一个标识。各章节和模式分别存档，一个会话可以存多章，每次操作当前选中的章节或翻译任务。同一章节的多轮反馈通过 `revise` 保留已经交付的版本。
 
 ```text
 python scripts/workflow.py --session {session_id} chapters
@@ -54,7 +54,7 @@ python scripts/workflow.py --session {session_id} plan {提纲.json}
 
 从用户实际输入识别简短的明确指令，例如「开始写」「开始写引言」「按这个提纲开始写」或 `Start writing`。当前章节须一致，疑问、引述、否定及条件句不触发。提纲还未登记时，可继续做学习和提纲。提纲展示后需要新的开写指令。登记写作语言时中文用 `--language zh`，英文用 `--language en`。
 
-在 Codex 中，已信任的项目钩子可从聊天接收指令。其余宿主用下面的命令，由用户本人在同一工作目录的交互式终端输入确认。正文交付后，同一命令也可记录用户满意。代理把填好路径及会话标识的命令交给用户，随后用 `status` 检查结果。
+启用 [授权钩子](agent-hooks.md) 的宿主可从真实用户消息接收指令。其余情况下用下面的命令，由用户本人在同一工作目录的交互式终端输入确认。正文交付后，同一命令也可记录用户满意。代理把填好路径及会话标识的命令交给用户，随后用 `status` 检查结果。
 
 ```text
 python scripts/workflow.py --session {session_id} user-confirm
@@ -100,7 +100,7 @@ python scripts/workflow.py --session {session_id} save-translation {单元编号
 python scripts/workflow.py --session {session_id} finish-translation {整稿复核.json}
 ```
 
-Codex 可从「把这段翻译成英文」或「把这篇论文翻译成英文」等指令取得本次相应范围的授权，也可先登记原文，再由用户说「开始翻译」。其他宿主由用户通过 `user-confirm` 授权。确认脚本已授权才翻译。译文单元使用 `text` 及 `review`，复核至少填写 `meaning`、`concision` 和 `terms_and_protected_content`。逐段模式按段交付，整篇模式逐段核对并保存，检查整篇后统一交稿。交稿前如需统一已译术语，可向相应单元的 `save-translation` 加 `--replace`。最终复核对象 `review` 包含 `coverage`、`terminology`、`concision` 和 `source_fidelity`。
+授权钩子可从「把这段翻译成英文」或「把这篇论文翻译成英文」等指令取得本次相应范围的授权，也可先登记原文，再由用户说「开始翻译」。没有授权钩子时由用户通过 `user-confirm` 授权。确认脚本已授权才翻译。译文单元使用 `text` 及 `review`，复核至少填写 `meaning`、`concision` 和 `terms_and_protected_content`。逐段模式按段交付，整篇模式逐段核对并保存，检查整篇后统一交稿。交稿前如需统一已译术语，可向相应单元的 `save-translation` 加 `--replace`。最终复核对象 `review` 包含 `coverage`、`terminology`、`concision` 和 `source_fidelity`。
 
 检查当前轮次、学习缺口、授权及任务进度时，用 `status`。
 

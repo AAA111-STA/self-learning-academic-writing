@@ -25,6 +25,6 @@ python scripts/workflow.py --session {会话标识} profile-propose {偏好.json
 python scripts/workflow.py --session {会话标识} profile-remove {偏好键}
 ```
 
-向用户展示要写入、更新或删除的具体条目。Codex 通过「保存写作偏好」或「删除写作偏好」记录确认。其他宿主由用户在同一目录运行 `python scripts/workflow.py --session {会话标识} profile-confirm`，在终端输入相同指令。更新使用原来的 `key`。对成稿的认可属于该任务，偏好保存使用独立确认。
+向用户展示要写入、更新或删除的具体条目。[授权钩子](agent-hooks.md)通过「保存写作偏好」或「删除写作偏好」记录确认。没有授权钩子时，由用户在同一目录运行 `python scripts/workflow.py --session {会话标识} profile-confirm`，在终端输入相同指令。更新使用原来的 `key`。对成稿的认可属于该任务，偏好保存使用独立确认。
 
 档案默认保存在用户主目录的 `.self-learning-academic-writing/profiles/`，也可通过 `SELF_LEARNING_WRITING_PROFILE_DIR` 使用本机指定目录。稿件和偏好均为本地工作数据，请放在公开发布的 Skill 文件之外。
