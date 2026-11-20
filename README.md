@@ -16,6 +16,7 @@ An Agent Skill for Chinese- and English-language journals. It studies the papers
 | Adapt sentences from example papers | Reuse a sentence’s grammatical structure or a conventional phrase that serves the same purpose. Fill the frame with your own research, and fit it to the surrounding text. |
 | Keep a reference library | Automatically create a `references.md` index with local source copies and notes organized by paper and section. Reuse them across sessions in the same workspace. |
 | Draft by section | Work on the abstract, introduction, literature review, methods, data, results, discussion, or conclusion. Present a plan and wait for an explicit start. |
+| Apply the section guides each round | Use the built-in structure guide in the outline and consult the matching sentence examples before drafting or editing. For a combined section, use each corresponding guide. |
 | Write or revise summaries | Read the complete results of each example paper and of the author's study before planning an abstract or conclusion. Select findings that answer the research questions and preserve the limits of the evidence. |
 | Edit existing text | Polish Chinese or English, including text translated elsewhere. Remove stock phrasing, trim details the context already establishes, and keep references to key terms precise. Preserve the author's meaning, facts, citations, terminology, and claim strength. |
 | Translate on request | Translate selected paragraphs one at a time or assemble a complete English manuscript. Check terminology and coverage. |

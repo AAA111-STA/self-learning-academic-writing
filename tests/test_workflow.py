@@ -165,6 +165,11 @@ class WorkflowTests(unittest.TestCase):
                     "paper_context": paper, "section_purpose": "总结差异", "section_flow": "比较前后结果",
                     "user_logic": "", "reference_decisions": "保留分时段证据",
                     "paragraphs": [{"point": "对比", "evidence": "前后估计", "link": "收束"}],
+                    "section_guidance": (
+                        {"摘要": {"rule": "优先把篇幅留给直接回答研究问题的结果", "application": "保留两时段估计以回答比较问题"}}
+                        if mode == "write" else
+                        {"结论": {"rule": "回到引言提出的问题", "application": "用前后估计的差异直接作答"}}
+                    ),
                     "results_selection": {"selection": "用两个结果区分时段", "blocks": [
                         {"location": "结果 1", "anchor": "The early estimate was 4 m.", "use": "纳入"},
                         {"location": "结果 2", "anchor": "The late estimate was 2 m.", "use": "纳入"},
@@ -174,9 +179,16 @@ class WorkflowTests(unittest.TestCase):
                 self.run_workflow("plan", outline, error="--results")
                 self.run_workflow("plan", outline, "--results", context, error="结果原句须来自结果材料")
                 results = self.write("author-results.txt", author_results)
+                self.run_workflow("plan", outline, "--results", results, error="read-section-guide")
+                self.run_workflow("read-section-guide")
                 self.run_workflow("plan", outline, "--results", results)
+                self.run_workflow("read-section-guide", "--stage", "draft", error="明确开写或润色")
                 self.prompt("开始润色" if mode == "polish" else "开始写")
                 self.assertTrue(self.status()["writing_authorized"])
+                self.run_workflow("save-draft", results, error="--stage draft")
+                self.run_workflow("read-section-guide", "--stage", "draft")
+                if mode == "write":
+                    self.run_workflow("save-draft", results)
 
     def test_english_polish_has_its_own_authorization_and_keeps_original(self):
         source = "Under spatial validation, the mean error was 4 m."
@@ -205,16 +217,24 @@ class WorkflowTests(unittest.TestCase):
             self.write("context.txt", "We used spatial validation."),
             self.write("study.json", note),
         )
-        self.run_workflow("plan", self.write("plan.json", {
+        plan = {
             "paper_context": paper, "section_purpose": "准确报告误差",
             "section_flow": "交代验证条件后汇报结果", "user_logic": "",
             "reference_decisions": "保留验证条件",
             "paragraphs": [{"point": "误差", "evidence": "现稿数值", "link": "收束"}],
-        }))
+            "section_guidance": {"结果": {"rule": "写明比较对象、指标、方向、幅度",
+                                     "application": "保留误差读数及空间验证条件"}},
+        }
+        self.run_workflow("read-section-guide")
+        invalid = {**plan, "section_guidance": {"结果": {"rule": "回到引言提出的问题", "application": "不属于结果"}}}
+        self.run_workflow("plan", self.write("plan.json", invalid), error="章节结构指南中的原文")
+        self.run_workflow("plan", self.write("plan.json", plan))
         amended = self.write("polished.txt", "The mean error was 4 m under spatial validation.")
         self.prompt("开始写")
         self.run_workflow("save-draft", amended, error="明确开写或润色")
         self.prompt("开始润色结果")
+        self.run_workflow("save-draft", amended, error="--stage draft")
+        self.run_workflow("read-section-guide", "--stage", "draft")
         self.run_workflow("save-draft", amended, error="内置润色")
         self.assertIn("中英文学术润色", self.run_workflow("read-editor"))
         self.run_workflow("save-draft", amended)
@@ -232,6 +252,13 @@ class WorkflowTests(unittest.TestCase):
                           error="prose_check 的原句须在最终正文中")
         self.assertFalse(self.status()["final_ready"])
         review["prose_check"]["anchor"] = "The mean error was 4 m under spatial validation."
+        self.run_workflow("finalize", self.write("revision.json", {"text": text, "review": review}),
+                          error="section_expressions")
+        review["section_expressions"] = {"结果": {"cue": "说明证据边界", "anchor": text, "decision": "不属于结果"}}
+        self.run_workflow("finalize", self.write("revision.json", {"text": text, "review": review}),
+                          error="章节句式指南")
+        review["section_expressions"]["结果"].update(
+            cue="报告同条件下的比较", decision="借鉴先说明验证条件的做法，原稿无基线所以只报告误差。")
         self.assertEqual(
             self.run_workflow("finalize", self.write("revision.json", {"text": text, "review": review})).strip(),
             text,
@@ -243,6 +270,19 @@ class WorkflowTests(unittest.TestCase):
         self.assertFalse(self.status()["final_ready"])
         self.run_workflow("resume", "结果", "--mode", "polish")
         self.assertEqual(json.loads(self.run_workflow("show"))["source"], source)
+
+    def test_combined_and_custom_sections_load_only_matching_guides(self):
+        self.run_workflow("init", "Results and Discussion", "example")
+        combined = self.run_workflow("read-section-guide")
+        self.assertIn("# 结果", combined)
+        self.assertIn("# 讨论", combined)
+        self.assertNotIn("# 摘要", combined)
+        self.run_workflow("init", "Results and Discussion", "example", "--guide-section", "引言",
+                          error="已识别的章节应使用对应指南")
+        self.run_workflow("init", "技术路线", "example")
+        self.run_workflow("read-section-guide", error="--guide-section")
+        self.run_workflow("init", "技术路线", "example", "--guide-section", "Methods")
+        self.assertIn("# 方法", self.run_workflow("read-section-guide"))
 
     def test_manuscript_translation_rejects_implicit_permission_and_missing_units(self):
         manifest = self.write("manuscript.json", {

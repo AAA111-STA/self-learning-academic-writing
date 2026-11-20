@@ -26,6 +26,22 @@ PAPER_FIELDS = ("main_line", "section_role", "connections")
 REVIEW_FIELDS = ("paper_alignment", "section_flow", "paragraph_links", "sentence_links", "language_and_facts")
 TRANSLATION_UNIT_REVIEW = ("meaning", "concision", "terms_and_protected_content")
 TRANSLATION_FINAL_REVIEW = ("coverage", "terminology", "concision", "source_fidelity")
+SECTION_GUIDES = {
+    "摘要": ("Abstract", "abstract.md"),
+    "引言": ("Introduction", "introduction.md"),
+    "文献综述": ("Literature Review", None),
+    "方法": ("Methods", None),
+    "数据": ("Data", None),
+    "结果": ("Results", None),
+    "讨论": ("Discussion", "discussion.md"),
+    "结论": ("Conclusion", None),
+}
+SECTION_ALIASES = {
+    "前言": "引言", "绪论": "引言", "综述": "文献综述",
+    "材料与方法": "方法", "研究方法": "方法", "methodology": "方法",
+    "materials and methods": "方法", "数据来源": "数据",
+    "研究结果": "结果", "研究结论": "结论",
+}
 
 
 class GateError(Exception):
@@ -245,8 +261,55 @@ def current_round(state):
     return state.get("round", 1)
 
 
+def guide_section(label):
+    key = ReferenceLibrary.section_key(label)
+    return SECTION_ALIASES.get(key, key)
+
+
+def guide_sections(state):
+    if state.get("guide_sections"):
+        return state["guide_sections"]
+    label = state["section"]
+    key = guide_section(label)
+    if key in SECTION_GUIDES:
+        return [key]
+    parts = [guide_section(part) for part in re.split(r"\s*[/／&、和与及]\s*|\s+and\s+", label, flags=re.I)]
+    return list(dict.fromkeys(parts)) if all(part in SECTION_GUIDES for part in parts) else []
+
+
 def needs_full_results(state):
-    return ReferenceLibrary.section_key(state["section"]) in ("摘要", "结论")
+    return any(section in ("摘要", "结论") for section in guide_sections(state))
+
+
+def heading_body(text, heading):
+    parts = re.split(r"(?m)^## ", text)
+    for part in parts[1:]:
+        title, _, body = part.partition("\n")
+        if title.strip() == heading:
+            return body.strip()
+    raise GateError(f"内置章节指南缺少标题：{heading}")
+
+
+def section_guidance(state):
+    sections = guide_sections(state)
+    require(sections, "无法匹配章节指南。重新 init，使用 --guide-section 指定对应的内置章节。")
+    structure = read_text(ROOT / "SKILL.md")
+    reference_dir = ROOT / "references"
+    guides = {}
+    for section in sections:
+        heading, filename = SECTION_GUIDES[section]
+        guides[section] = {
+            "structure": heading_body(structure, f"写 {heading}"),
+            "expressions": (read_text(reference_dir / filename) if filename else
+                            heading_body(read_text(reference_dir / "section-expressions.md"), section)),
+        }
+    return guides
+
+
+def require_guide_plan(state):
+    plan = state.get("plan", {})
+    require(plan.get("guide_digest"), "先读取对应章节指南并重新登记提纲。")
+    require(plan["guide_digest"] == digest(section_guidance(state)), "章节指南已更新，请复读并重新登记提纲。")
 
 
 def missing_study(state):
@@ -276,6 +339,7 @@ def plan_revision(state):
     require(state.get("plan"), "先梳理并登记章节提纲。")
     if needs_full_results(state):
         require(state["plan"].get("results_hash"), "摘要和结论须核对本文完整结果后重新登记提纲。")
+    require_guide_plan(state)
     content = [
         current_round(state), state["section"], state["references"],
         state["study"], state["plan"],
@@ -295,6 +359,11 @@ def require_start(state):
     )
 
 
+def require_draft_guides(state):
+    require(state.get("draft_guides_read") == plan_revision(state),
+            "动笔前先运行 read-section-guide --stage draft，查阅本轮对应章节的句式。")
+
+
 def status(state):
     if state.get("mode") == "translate":
         return translation_status(state)
@@ -308,7 +377,9 @@ def status(state):
         "missing_study": missing_study(state),
         "feedback_registered": bool(state.get("feedback")),
         "plan_ready": bool(state.get("plan")) and (
-            not needs_full_results(state) or bool(state["plan"].get("results_hash"))
+            bool(version) or (bool(state["plan"].get("guide_digest")) and (
+                not needs_full_results(state) or bool(state["plan"].get("results_hash"))
+            ))
         ),
         "writing_authorized": not version and bool(state.get("authorization")),
         "draft_ready": bool(state.get("draft")),
@@ -319,7 +390,7 @@ def status(state):
 
 
 def invalidate_writing(state):
-    for field in ("authorization", "draft", "humanizer", "editor_read", "final"):
+    for field in ("authorization", "draft_guides_read", "draft", "humanizer", "editor_read", "final"):
         state.pop(field, None)
 
 
@@ -461,6 +532,20 @@ def record_plan(state, path, results_path):
     user_logic = plan.get("user_logic")
     require(isinstance(user_logic, str), "user_logic 应为字符串。用户未提供思路时留空。")
     required_text(plan, "reference_decisions")
+    guides = section_guidance(state)
+    guide_digest = digest(guides)
+    require(state.get("plan_guides_read") == [current_round(state), guide_digest],
+            "本轮拟提纲前先运行 read-section-guide 读取内置章节规则。")
+    chosen = plan.get("section_guidance")
+    require(isinstance(chosen, dict) and set(chosen) == set(guides),
+            "section_guidance 须逐章登记：" + "、".join(guides))
+    plan["section_guidance"] = {}
+    for section, guide in guides.items():
+        decision = object_fields(chosen, section, ("rule", "application"))
+        require(normal_text(decision["rule"]) in normal_text(guide["structure"]),
+                f"{section}的 rule 须引用该章节结构指南中的原文。")
+        plan["section_guidance"][section] = decision
+    plan["guide_digest"] = guide_digest
     if state.get("feedback"):
         required_text(plan, "feedback_response")
     paragraphs = plan.get("paragraphs")
@@ -816,6 +901,13 @@ def init_chapter(data, args):
     require(not args.source or args.mode == "polish", "只有润色任务接收已有稿件 --source。")
     key = task_key(args.mode, section)
     state = data["tasks"].get(key)
+    explicit_guides = (state or {}).get("guide_sections", [])
+    if args.guide_section:
+        requested = list(dict.fromkeys(guide_section(label) for label in args.guide_section))
+        require(all(label in SECTION_GUIDES for label in requested), "--guide-section 须指定已有章节。")
+        inferred = guide_sections({"section": section})
+        require(not inferred or set(requested) == set(inferred), "已识别的章节应使用对应指南。")
+        explicit_guides = requested
     source = read_text(args.source) if args.source else (state or {}).get("source")
     require(args.mode != "polish" or source, "润色需用 --source 登记用户现稿。")
     language = args.language or (state or {}).get("language")
@@ -825,8 +917,8 @@ def init_chapter(data, args):
             "mode": args.mode, "section": section, "round": 1,
             "references": references, "study": {},
         }
-    elif (references, source, language) != (
-        state["references"], state.get("source"), state.get("language"),
+    elif (references, source, language, explicit_guides) != (
+        state["references"], state.get("source"), state.get("language"), state.get("guide_sections", []),
     ):
         require_open_round(state)
         archived = deepcopy({name: value for name, value in state.items() if name != "previous_setups"})
@@ -834,7 +926,10 @@ def init_chapter(data, args):
         state["references"] = references
         state["study"] = {ref: note for ref, note in state["study"].items() if ref in references}
         state.pop("plan", None)
+        state.pop("plan_guides_read", None)
         invalidate_writing(state)
+    if explicit_guides:
+        state["guide_sections"] = explicit_guides
     if source:
         state["source"] = source
     if language:
@@ -1029,6 +1124,21 @@ def run(args):
         require_start(state)
         emit(status(state))
         return
+    elif args.action == "read-section-guide":
+        require_open_round(state)
+        if args.stage == "draft":
+            require_start(state)
+        guides = section_guidance(state)
+        if args.stage == "draft":
+            state["draft_guides_read"] = plan_revision(state)
+            materials = {section: guide["expressions"] for section, guide in guides.items()}
+        else:
+            state["plan_guides_read"] = [current_round(state), digest(guides)]
+            materials = {section: guide["structure"] for section, guide in guides.items()}
+        save_state(path, data)
+        for section, material in materials.items():
+            print(f"# {section}\n\n{material}\n")
+        return
     elif args.action == "read-editor":
         require(state.get("mode") == "polish", "请先切换到润色任务。")
         require_start(state)
@@ -1039,6 +1149,7 @@ def run(args):
         return
     elif args.action == "save-draft":
         require_start(state)
+        require_draft_guides(state)
         if state.get("mode") == "polish":
             require(state.get("editor_read") == plan_revision(state), "润色现稿前先读取内置润色流程。")
         draft = read_text(args.input)
@@ -1056,6 +1167,7 @@ def run(args):
         return
     elif args.action == "finalize":
         require_start(state)
+        require_draft_guides(state)
         require(
             state.get("draft") and state.get("humanizer", {}).get("draft_hash") == digest(state["draft"]),
             "先读取内置 academic-humanizer 并修订当前初稿。",
@@ -1066,6 +1178,18 @@ def run(args):
         prose_check = object_fields(review["review"], "prose_check", ("anchor", "assessment"))
         require(normal_text(prose_check["anchor"]) in normal_text(final), "prose_check 的原句须在最终正文中。")
         checks["prose_check"] = prose_check
+        expressions = review["review"].get("section_expressions")
+        guides = section_guidance(state)
+        require(isinstance(expressions, dict) and set(expressions) == set(guides),
+                "section_expressions 须逐章登记：" + "、".join(guides))
+        checks["section_expressions"] = {}
+        for section, guide in guides.items():
+            decision = object_fields(expressions, section, ("cue", "anchor", "decision"))
+            require(normal_text(decision["cue"]) in normal_text(guide["expressions"]),
+                    f"{section}的 cue 须来自该章节句式指南。")
+            require(normal_text(decision["anchor"]) in normal_text(final),
+                    f"{section}的句式复核原句须在最终正文中。")
+            checks["section_expressions"][section] = decision
         if state.get("mode") == "polish":
             checks.update(object_fields(review, "review", ("source_fidelity",)))
         if state.get("feedback"):
@@ -1115,6 +1239,7 @@ def main():
     init.add_argument("--mode", choices=("write", "polish"), default="write")
     init.add_argument("--source", help="UTF-8 manuscript text for polish mode")
     init.add_argument("--language", choices=("zh", "en"))
+    init.add_argument("--guide-section", action="append", help="built-in guide for a custom section title")
     resume = sub.add_parser("resume")
     resume.add_argument("section")
     resume.add_argument("--mode", choices=("write", "polish", "translate"), default="write")
@@ -1139,6 +1264,8 @@ def main():
     plan = sub.add_parser("plan")
     plan.add_argument("input")
     plan.add_argument("--results", help="UTF-8 complete author results for abstract or conclusion")
+    guide = sub.add_parser("read-section-guide")
+    guide.add_argument("--stage", choices=("plan", "draft"), default="plan")
     for action in ("save-draft", "finalize", "finish-translation"):
         sub.add_parser(action).add_argument("input")
     for action in (

@@ -36,8 +36,11 @@ python scripts/workflow.py --session {session_id} study {文献标识A} {章节�
 ## 2. 设计章节逻辑
 
 ```text
+python scripts/workflow.py --session {session_id} read-section-guide
 python scripts/workflow.py --session {session_id} plan {提纲.json}
 ```
+
+每轮先读取对应章节的内置结构规则，结合指定范文和作者材料拟提纲。「结果与讨论」等合并章节需分别落实对应原则；自定义章节名可在 `init` 时用 `--guide-section 方法` 等指定映射，多章可重复该参数。
 
 提纲 JSON 中的字段：
 
@@ -48,6 +51,7 @@ python scripts/workflow.py --session {session_id} plan {提纲.json}
 | `section_flow` | 这一节从哪里起、如何推进、落在哪里，包含各段在本节中承担的作用 |
 | `user_logic` | 用户提供的组织思路原意。用户未提供时填空字符串 |
 | `reference_decisions` | 借鉴了哪些指定范文的哪些组织方式，以及为什么适合当前研究 |
+| `section_guidance` | 以 `read-section-guide` 输出的章节名为键；每章填 `rule`（引用一条内置结构规则的原文）和 `application`（用研究材料落实到哪一段或为何保留现有结构）。给作者看应用和理由即可。 |
 | `paragraphs` | 有序段落列表。各段填写 `point`（表达重点）、`evidence`（当前研究或已有可信依据）、`link`（和后文的衔接，末段可填收束作用） |
 | `feedback_response` | 返修轮必填。说明用户反馈涉及哪些层次，以及本轮将怎样处理 |
 
@@ -76,12 +80,15 @@ python scripts/workflow.py --session {session_id} user-confirm
 
 ```text
 python scripts/workflow.py --session {session_id} check-start
+python scripts/workflow.py --session {session_id} read-section-guide --stage draft
 python scripts/workflow.py --session {session_id} save-draft {完整初稿.txt}
 python scripts/workflow.py --session {session_id} read-humanizer
 python scripts/workflow.py --session {session_id} finalize {修订稿.json}
 ```
 
-先通过 `check-start`，按 [句子与措辞规则](prose-style.md) 组织完整正文并登记初稿。使用 `read-humanizer` 读取随 Skill 打包的 `academic-humanizer`，结合本 Skill 的规则复读和修订。修订结果 JSON 提供 `text`（可交付章节）和 `review` 对象。复核记录填写 `paper_alignment`（整篇主线与跨章节关系）、`section_flow`（章节整体论证）、`paragraph_links`（段落衔接）、`sentence_links`（相邻句的承接、主题引入及逻辑跳跃的核对结果）、`language_and_facts`（语言修订与事实、数字、术语和引文核对）。返修轮还须填写 `feedback_addressed`。
+先通过 `check-start`，再读取本轮句式。按段落任务借鉴表达的作用，用稿件已有事实和语言改写，或据此核对已有句子。无需把内置句式逐字放进正文。除摘要、引言、讨论的独立句式表，还提供[其他章节的中英文表达](section-expressions.md)。按 [句子与措辞规则](prose-style.md) 组织正文并登记初稿。使用 `read-humanizer` 读取随 Skill 打包的 `academic-humanizer`，结合本 Skill 的规则复读和修订。修订结果 JSON 提供 `text`（可交付章节）和 `review` 对象。复核记录填写 `paper_alignment`（整篇主线与跨章节关系）、`section_flow`（章节整体论证）、`paragraph_links`（段落衔接）、`sentence_links`（句间承接与逻辑跳跃）、`language_and_facts`（语言与事实核对）。返修轮还须填写 `feedback_addressed`。
+
+`review.section_expressions` 以输出的章节名为键，每章填写 `cue`（本章句式指南里使用的例句片段或用途原文）、`anchor`（最终正文中对应的原句）、`decision`（怎样仿写、调整或借此检查并保留了自然的表达）。脚本验证指南版本、条目和正文原句，实际取舍仍由智能体根据稿件判断。升级前已经交付的版本保留；进行中的旧提纲复读指南并重新登记，取得新的开写授权。
 
 去 AI 味后复读最终正文。在 `review.prose_check` 中填写 `anchor`（最终正文中的一处原句或连续短段）和 `assessment`（例如如何删去套话或重复限定、如何让简称准确承接前文，或为何保留一项必要的依据、对象或限制）。有多处问题时逐处修订，记录一处代表性复核即可。脚本确认记录存在、原句能在最终正文定位；句子自然与否、依据是否成立仍要对照稿件由代理判断。通过脚本输出后向用户交付本轮正文，并等待反馈。
 
@@ -101,7 +108,7 @@ python scripts/workflow.py --session {session_id} init 讨论 {文献标识} --m
 python scripts/workflow.py --session {session_id} read-editor
 ```
 
-先登记现稿并拟定修改方案。可以复用同章写作时已核对的相关范文记录，缺少的部分继续学习。展示方案后，等用户说「开始润色」或 `Start polishing`。其他宿主可通过 `user-confirm` 记录同一指令。获授权后，先用 `read-editor` 读取润色要求，再执行 `save-draft`、`read-humanizer` 和 `finalize`。润色的 `review` 增加 `source_fidelity`，说明语义、数据、术语及用户允许的变动是否与本轮原稿对得上。返修轮以上一版润色稿为本轮原稿。中文稿选择 `zh`，英文稿或外部英译稿选择 `en`。
+先登记现稿、读取章节结构指南并拟定修改方案。可以复用同章写作时已核对的相关范文记录，缺少的部分继续学习。展示方案后，等用户说「开始润色」或 `Start polishing`。其他宿主可通过 `user-confirm` 记录同一指令。获授权后，使用 `read-editor` 和 `read-section-guide --stage draft`，再执行 `save-draft`、`read-humanizer` 和 `finalize`。润色的 `review` 增加 `source_fidelity`，说明语义、数据、术语及用户允许的变动是否与本轮原稿对得上。返修轮以上一版润色稿为本轮原稿。中文稿选择 `zh`，英文稿或外部英译稿选择 `en`。
 
 ## 6. 可选的英译任务
 
