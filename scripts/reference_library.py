@@ -60,22 +60,28 @@ def fenced_excerpt(value):
     return f"{fence}text\n{value}\n{fence}"
 
 
+@contextmanager
+def file_lock(path):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with path.open("a+b") as lock:
+        if os.name == "nt":
+            import msvcrt
+
+            lock.seek(0)
+            msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
+        else:
+            import fcntl
+
+            fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
+        # Closing the file releases the lock, including if interrupted or failed.
+        yield
+
+
 class ReferenceLibrary:
     @classmethod
     @contextmanager
     def edit(cls, root):
-        root.mkdir(parents=True, exist_ok=True)
-        with (root / "reference-library.lock").open("a+b") as lock:
-            if os.name == "nt":
-                import msvcrt
-
-                lock.seek(0)
-                msvcrt.locking(lock.fileno(), msvcrt.LK_LOCK, 1)
-            else:
-                import fcntl
-
-                fcntl.flock(lock.fileno(), fcntl.LOCK_EX)
-            # Closing the file releases the lock, including if interrupted or failed.
+        with file_lock(root / "reference-library.lock"):
             yield cls(root)
 
     def __init__(self, root):
@@ -153,12 +159,14 @@ class ReferenceLibrary:
         key = normalize(section)
         return SECTION_NAMES.get(key, key)
 
-    def archive(self, entry, section, record, excerpt, context):
+    def archive(self, entry, section, record, excerpt, context, *, results=None):
         snapshot = {
             "section": section, "attachment": self.attachment_version(entry),
             "study": {key: value for key, value in record.items() if key != "round"},
             "excerpt": excerpt, "context": context,
         }
+        if results is not None:
+            snapshot["results"] = results
         snapshots = entry["sections"].setdefault(self.section_key(section), [])
         if not snapshots or snapshots[-1] != snapshot:
             snapshots.append(snapshot)
@@ -213,6 +221,10 @@ class ReferenceLibrary:
                 ]
                 for name, pattern in study["patterns"].items():
                     lines.append(f"- {PATTERN_LABELS[name]}：" + inline(pattern["observation"]))
+                if coverage := study.get("results_coverage"):
+                    lines += ["", "**从完整结果中取舍**", "", inline(coverage["selection"])]
+                    for block in coverage["blocks"]:
+                        lines.append("- " + inline(block["location"]) + "：“" + inline(block["anchor"]) + "”")
                 sentence_patterns = study.get("sentence_patterns", [])
                 if sentence_patterns:
                     lines += ["", "**可仿写句式**"]
@@ -225,6 +237,8 @@ class ReferenceLibrary:
                         ]
                 lines += ["", "**目标章节摘录**", "", fenced_excerpt(item["excerpt"]),
                           "", "**用于理解全文的上下文**", "", fenced_excerpt(item["context"])]
+                if "results" in item:
+                    lines += ["", "**范文完整结果**", "", fenced_excerpt(item["results"])]
         return "\n".join(lines) + "\n"
 
     def save(self):

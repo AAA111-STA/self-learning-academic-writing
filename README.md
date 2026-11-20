@@ -6,7 +6,7 @@
 
 An Agent Skill for Chinese- and English-language journals. It studies the papers you choose, from the overall argument down to individual sentence patterns. It combines what it learns with your evidence and intended argument, then proposes a section outline before drafting. It can also edit existing manuscripts or translate Chinese into concise academic English when explicitly requested.
 
-**Reuse references across sessions.** A [local project reference library](references/reference-library.md) creates a `references.md` index of the papers you provide, any local copies, and excerpts, reusable sentence frames, and reading notes by section. Open the same manuscript folder when you change sessions or agents. Writing preferences that the author explicitly confirms are saved separately in a local author profile.
+**Pick up where you left off.** On first use in your manuscript folder, the skill creates two Markdown files: [`references.md`](references/reference-library.md) for the example papers, local copies, and notes by section, and [`writing-preferences.md`](references/writing-profile.md) for confirmed project preferences. Open the same folder to reuse them in another session. Save a preference to a separate local author profile when you want it to carry over to other manuscripts.
 
 ## What it does
 
@@ -16,6 +16,7 @@ An Agent Skill for Chinese- and English-language journals. It studies the papers
 | Adapt sentences from example papers | Reuse a sentence’s grammatical structure or a conventional phrase that serves the same purpose. Fill the frame with your own research, and fit it to the surrounding text. |
 | Keep a reference library | Automatically create a `references.md` index with local source copies and notes organized by paper and section. Reuse them across sessions in the same workspace. |
 | Draft by section | Work on the abstract, introduction, literature review, methods, data, results, discussion, or conclusion. Present a plan and wait for an explicit start. |
+| Write or revise summaries | Read the complete results of each example paper and of the author's study before planning an abstract or conclusion. Select findings that answer the research questions and preserve the limits of the evidence. |
 | Edit existing text | Polish Chinese or English, including text translated elsewhere. Remove stock phrasing, trim details the context already establishes, and keep references to key terms precise. Preserve the author's meaning, facts, citations, terminology, and claim strength. |
 | Translate on request | Translate selected paragraphs one at a time or assemble a complete English manuscript. Check terminology and coverage. |
 | Resume work and save preferences | Switch between sections without losing earlier plans, drafts, or revisions. Save personal preferences with the author's confirmation. |
@@ -68,7 +69,7 @@ See [Agent setup and hook configuration](references/agent-hooks.md) for optional
 ## Files and local data
 
 - [SKILL.md](SKILL.md) contains the writing and revision rules. [Workflow reference](references/workflow-inputs.md) describes the commands and input formats.
-- Drafts and reference notes stay under `.self-learning-academic-writing/` in the project, which Git ignores. Confirmed [author profiles](references/writing-profile.md) are stored locally in the user's home directory by default.
+- Drafts, reference notes, and confirmed project preferences stay under the project's `.self-learning-academic-writing/` folder and are ignored by Git by default. Confirmed [personal profiles](references/writing-profile.md) are stored locally in the user's home directory by default.
 - The [project reference library](references/reference-library.md) keeps local sources and section notes available when you move to another section or session.
 - From the repository root, run `python -m unittest discover -s tests` to check section recovery, preference confirmation, language workflows, and hook adapters.
 

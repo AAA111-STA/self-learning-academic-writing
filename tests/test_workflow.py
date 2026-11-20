@@ -70,22 +70,113 @@ class WorkflowTests(unittest.TestCase):
 
     def test_only_confirmed_preferences_persist_across_sessions(self):
         self.run_workflow("profile-use", "author-a")
-        self.run_workflow("profile-propose", self.write("style.json", {
+        self.run_workflow("profile-propose", "--scope", "personal", self.write("style.json", {
             "key": "evaluation", "text": "比较时写明验证条件。",
             "language": "both", "sections": ["结果"],
         }))
         self.prompt("先不要保存写作偏好")
         self.prompt("这版我满意")
         self.assertFalse((self.profile_directory / "author-a.json").exists())
-        self.prompt("保存写作偏好")
+        self.assertIn("范围", self.prompt("保存写作偏好"))
+        self.assertFalse((self.profile_directory / "author-a.json").exists())
+        self.prompt("保存个人写作偏好")
         saved = json.loads(self.run_workflow("profile-use", "author-a", session="next"))
         self.assertEqual(saved["preferences"]["evaluation"]["text"], "比较时写明验证条件。")
         other = json.loads(self.run_workflow("profile-use", "author-b", session="other"))
         self.assertEqual(other["preferences"], {})
-        self.run_workflow("profile-remove", "evaluation")
-        self.assertIn("evaluation", json.loads(self.run_workflow("profile-show"))["preferences"])
+        self.run_workflow("profile-remove", "--scope", "personal", "evaluation")
+        self.assertIn("evaluation", json.loads(self.run_workflow("profile-show", "--scope", "personal"))["preferences"])
+        self.prompt("删除个人写作偏好")
+        self.assertEqual(json.loads(self.run_workflow("profile-show", "--scope", "personal", session="next"))["preferences"], {})
+
+    def test_project_archives_and_preferences_are_scoped_across_chats(self):
+        self.prompt("你好")
+        self.assertFalse((self.workspace / ".self-learning-academic-writing").exists())
+        archives = json.loads(self.run_workflow("project-init"))
+        reference = Path(archives["reference_index"])
+        markdown = Path(archives["writing_preferences"])
+        self.assertTrue(reference.is_file())
+        self.assertEqual(reference.parent, markdown.parent)
+        original = markdown.read_text(encoding="utf-8")
+
+        rule = "本稿技术路线只概述主要步骤。"
+        self.run_workflow("profile-propose", self.write("style.json", {"key": "route", "text": rule}))
+        self.prompt("保存个人写作偏好")
+        self.assertEqual(markdown.read_text(encoding="utf-8"), original)
+        self.prompt("保存写作偏好")
+        self.assertIn(rule, markdown.read_text(encoding="utf-8"))
+        prior_workspace = self.workspace
+        confirmed = json.loads(self.run_workflow("profile-show", session="new-chat"))
+        self.assertEqual(confirmed["preferences"]["route"]["text"], rule)
+        self.workspace = prior_workspace / "another-manuscript"
+        self.workspace.mkdir()
+        self.assertEqual(json.loads(self.run_workflow("profile-show", session="new-chat"))["preferences"], {})
+        self.assertFalse(self.profile_directory.exists())
+        self.workspace = prior_workspace
+        self.run_workflow("project-init")
+        self.assertIn(rule, markdown.read_text(encoding="utf-8"))
+        self.run_workflow("profile-remove", "route")
         self.prompt("删除写作偏好")
-        self.assertEqual(json.loads(self.run_workflow("profile-show", session="next"))["preferences"], {})
+        self.assertEqual(markdown.read_text(encoding="utf-8"), original)
+
+    def test_abstract_and_conclusion_require_both_sets_of_results_before_planning(self):
+        task_specs = [
+            ("Abstract", "write", "Earlier exposure mattered.", "Recovery remained uncertain."),
+            ("结论", "polish", "Recovery followed treatment.", "Late observations were limited."),
+        ]
+        reference_results = "Early outcomes improved. Later outcomes were unchanged."
+        author_results = "The early estimate was 4 m. The late estimate was 2 m."
+        paper = {"main_line": "比较前后结果", "section_role": "综合证据", "connections": "对应结果"}
+        for section, mode, first, second in task_specs:
+            with self.subTest(section=section, mode=mode):
+                excerpt = self.write("excerpt.txt", first + "\n\n" + second)
+                context = self.write("ref-results.txt", reference_results)
+                args = ("--source", excerpt) if mode == "polish" else ()
+                report = json.loads(self.run_workflow("init", section, "paper-a", "--mode", mode, *args))
+                self.assertTrue(Path(report["writing_preferences"]).is_file())
+                self.assertTrue(Path(report["reference_index"]).is_file())
+                note = {
+                    "section": section, "location": section, "paper_context": {
+                        **paper, "evidence": [{"location": "Results 1", "anchor": "Early outcomes improved."}],
+                    },
+                    "paragraph_transition": {
+                        "from": first, "to": second, "observation": "由发现到局限", "application": "区分时段",
+                    },
+                }
+                for key in ("expression", "grammar", "organization", "concision"):
+                    note[key] = {"anchor": first, "observation": "说明方向", "application": "陈述发现"}
+                study = self.write("study.json", note)
+                self.run_workflow("study", "paper-a", excerpt, context, study, error="--results")
+                self.run_workflow("study", "paper-a", excerpt, context, study, "--results", context,
+                                  error="results_coverage")
+                note["results_coverage"] = {"selection": "取较早发现，保留后期局限", "blocks": [
+                    {"location": "Results 1", "anchor": "Early outcomes improved.", "use": "纳入"},
+                    {"location": "Results 2", "anchor": "Later outcomes were unchanged.", "use": "保留边界"},
+                ]}
+                study = self.write("study.json", note)
+                self.run_workflow("study", "paper-a", excerpt, context, study, "--results", excerpt,
+                                  error="结果原句须来自结果材料")
+                self.run_workflow("study", "paper-a", excerpt, context, study, "--results", context)
+                archived = json.loads(self.run_workflow("reference-show", "paper-a", "--section", section))
+                snapshot = next(iter(archived["studies"].values()))[0]
+                self.assertEqual(snapshot["study"]["results_coverage"], note["results_coverage"])
+                self.assertEqual(snapshot["results"], reference_results)
+                plan = {
+                    "paper_context": paper, "section_purpose": "总结差异", "section_flow": "比较前后结果",
+                    "user_logic": "", "reference_decisions": "保留分时段证据",
+                    "paragraphs": [{"point": "对比", "evidence": "前后估计", "link": "收束"}],
+                    "results_selection": {"selection": "用两个结果区分时段", "blocks": [
+                        {"location": "结果 1", "anchor": "The early estimate was 4 m.", "use": "纳入"},
+                        {"location": "结果 2", "anchor": "The late estimate was 2 m.", "use": "纳入"},
+                    ]},
+                }
+                outline = self.write("plan.json", plan)
+                self.run_workflow("plan", outline, error="--results")
+                self.run_workflow("plan", outline, "--results", context, error="结果原句须来自结果材料")
+                results = self.write("author-results.txt", author_results)
+                self.run_workflow("plan", outline, "--results", results)
+                self.prompt("开始润色" if mode == "polish" else "开始写")
+                self.assertTrue(self.status()["writing_authorized"])
 
     def test_english_polish_has_its_own_authorization_and_keeps_original(self):
         source = "Under spatial validation, the mean error was 4 m."

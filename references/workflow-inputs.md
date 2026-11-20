@@ -18,7 +18,7 @@ python scripts/workflow.py --session {session_id} show
 
 命令示例中的花括号表示运行时替换的值。
 
-先用 `references` 创建或查看本项目的 `references.md`。作者新提供的文献用 `reference-add` 登记。后续会话保持同一论文工作目录，可按 [项目参考文献库](reference-library.md) 找回文件和已读章节。
+实际使用 Skill 时，先从论文工作目录运行 `python scripts/workflow.py project-init`。首次自动创建 `.self-learning-academic-writing/references.md` 和同目录的 `writing-preferences.md`；以后恢复已有记录。作者新提供的范文用 `reference-add` 登记，可访问的原文用 `--file` 保存副本。用 `profile-show` 读取已确认的项目偏好。后续会话保持同一论文工作目录，可按 [项目参考文献库](reference-library.md) 找回文件和已读章节。
 
 ```text
 python scripts/workflow.py --session {session_id} init 引言 {文献标识A} {文献标识B} --language zh
@@ -52,6 +52,17 @@ python scripts/workflow.py --session {session_id} plan {提纲.json}
 | `feedback_response` | 返修轮必填。说明用户反馈涉及哪些层次，以及本轮将怎样处理 |
 
 登记成功后，向用户展示章节逻辑及选择依据。涉及步骤衔接时，在 `link` 写明前一步的产出怎样被后一步使用，或两步各回答什么问题。证据或研究结果不足处标记待补。用户的开写授权对应当时已登记的提纲及范文学习版本。
+
+<a id="summary-results"></a>
+
+### 摘要与结论：先覆盖完整结果，再决定取舍
+
+此规则适用于摘要和结论的写作及润色。读完每篇范文对应章节及其全部结果小节、关键图表和图注，在实际读过的材料中整理出完整结果的文字及必要图表记录。每篇范文用 `study {标识} {章节摘录.txt} {整文上下文.txt} {学习记录.json} --results {范文完整结果.txt}`，在学习记录中填写 `results_coverage`。用户自己的结果也按研究问题逐项核对，用 `plan {提纲.json} --results {本文完整结果.txt}`，在提纲中填写 `results_selection`。两个对象结构相同：
+
+- `blocks`：按实际结果组织逐项列出 `location`（小节、段落、图或表）、`anchor`（结果材料中的短原句）及 `use`（该发现是否纳入总结、具体支撑什么，或略去的理由）。合并的结果与讨论、无独立结果小节的文章，按实际结果块定位；图表上没有完整句子时，可转录标签和数值作为定位。
+- `selection`：范文写作者怎样从完整结果取舍；用户稿写拟保留哪些关键结果、如何回应研究问题及哪些证据限制结论。
+
+复用范文记录时，先打开已保存的完整结果和取舍笔记，确认原文版本一致。旧版未登记结果覆盖的记录可作为线索，须补读后再登记。缺少任意一边的完整结果时报告具体缺口，暂不提交正式提纲或正文。脚本核对结果原句和记录是否齐备，并把用户结果版本绑定到正式提纲；是否确实覆盖全文结果由代理对照原稿核查。交稿前把摘要或结论中的每个实质判断、数值和限定条件对照用户的实际结果，复核记入 `review.paper_alignment`。
 
 ## 3. 等待用户开写，然后起草与修订
 

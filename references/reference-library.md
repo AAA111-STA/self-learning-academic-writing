@@ -1,6 +1,6 @@
 # 项目参考文献库 · Project reference library
 
-Skill 在论文工作目录下自动维护 `.self-learning-academic-writing/references.md`。一个目录可登记多篇论文。Markdown 按文献和章节展示来源、原文副本入口、摘录、可仿写句式及已核对的学习内容。结构化索引和原文副本在同一数据目录内，随项目保留，不进入公开 Git 提交。
+Skill 首次在论文工作目录运行 `project-init` 时自动建立 `.self-learning-academic-writing/references.md` 和 [项目写作偏好](writing-profile.md)。一个目录可登记多篇论文。Markdown 按文献和章节展示来源、原文副本入口、摘录、可仿写句式及已核对的学习内容。结构化索引和原文副本随项目保留，默认由 Git 忽略。
 
 同一篇论文换章节或换会话时，继续使用原来的论文工作目录。可以先查看目录，再按当前任务选择合适的文献。每条引文仍需检查原文是否支持稿件中的对应判断。
 
@@ -9,6 +9,7 @@ Skill 在论文工作目录下自动维护 `.self-learning-academic-writing/refe
 在论文工作目录执行。安装在其他位置时，把脚本路径换成实际安装路径。
 
 ```text
+python scripts/workflow.py project-init
 python scripts/workflow.py references
 python scripts/workflow.py reference-add paper-a --title "论文题名" --file "原文.pdf"
 python scripts/workflow.py reference-add paper-b --title "另一篇论文" --doi "10.1234/example" --source "https://doi.org/10.1234/example"

@@ -11,7 +11,7 @@ import tempfile
 from pathlib import Path
 
 from host_hooks import CONTEXT_ONLY, HOSTS, format_context, submission
-from reference_library import ReferenceLibrary
+from reference_library import ReferenceLibrary, file_lock, inline, write_text
 
 
 ROOT = Path(__file__).resolve().parent.parent
@@ -129,8 +129,43 @@ def read_profile(alias):
     return {"schema": 1, "profile": path.stem, "preferences": {}}
 
 
-def stage_preference(data, args):
-    alias = required_text(data, "profile")
+def read_project_preferences(root):
+    path = root / "writing-preferences.json"
+    return read_object(path) if path.exists() else {"schema": 1, "preferences": {}}
+
+
+def render_project_preferences(root, record):
+    path = root / "writing-preferences.md"
+    lines = [
+        "# 项目写作偏好", "",
+        "仅适用于当前论文项目。此文件由 Skill 根据作者已确认的偏好生成。",
+    ]
+    if not record["preferences"]:
+        lines += ["", "尚无已确认的项目写作偏好。"]
+    for key, item in record["preferences"].items():
+        sections = "、".join(map(inline, item["sections"])) or "全部章节"
+        lines += ["", f"## {key}", "", inline(item["text"]), "",
+                  f"- 语言：{item['language']}", f"- 章节：{sections}"]
+    content = "\n".join(lines) + "\n"
+    if not path.exists() or path.read_text(encoding="utf-8") != content:
+        write_text(path, content)
+    return path
+
+
+def initialize_project_preferences(root):
+    with file_lock(root / "writing-preferences.lock"):
+        # Keep generated documents, source copies and session data out of default Git adds.
+        ignore = root / ".gitignore"
+        if not ignore.exists():
+            write_text(ignore, "*\n")
+        return render_project_preferences(root, read_project_preferences(root))
+
+
+def stage_preference(data, args, root):
+    scope = args.scope
+    target = {"scope": scope}
+    if scope == "personal":
+        target["profile"] = required_text(data, "profile")
     if args.action == "profile-propose":
         item = read_object(args.input)
         key = safe_identifier(required_text(item, "key"), "偏好需要有效的 key。").lower()
@@ -142,7 +177,7 @@ def stage_preference(data, args):
             "sections 须为章节名列表。所有章节适用时可留空。",
         )
         pending = {
-            "action": "save", "profile": alias, "key": key,
+            **target, "action": "save", "key": key,
             "preference": {
                 "text": required_text(item, "text"),
                 "language": language,
@@ -151,44 +186,57 @@ def stage_preference(data, args):
         }
     else:
         key = safe_identifier(args.key, "偏好需要有效的 key。").lower()
-        require(key in read_profile(alias)["preferences"], "该档案没有这条偏好。")
-        pending = {"action": "remove", "profile": alias, "key": key}
+        record = read_profile(target["profile"]) if scope == "personal" else read_project_preferences(root)
+        require(key in record["preferences"], "该范围内没有这条偏好。")
+        pending = {**target, "action": "remove", "key": key}
     data["pending_preference"] = pending
     return pending
 
 
-def profile_decision(data, prompt):
+def profile_decision(data, prompt, root):
     commands = {
-        "保存写作偏好": "save",
-        "savethiswritingpreference": "save",
-        "删除写作偏好": "remove",
-        "removethiswritingpreference": "remove",
+        "保存写作偏好": ("save", "project"),
+        "savethiswritingpreference": ("save", "project"),
+        "删除写作偏好": ("remove", "project"),
+        "removethiswritingpreference": ("remove", "project"),
+        "保存个人写作偏好": ("save", "personal"),
+        "savethispersonalwritingpreference": ("save", "personal"),
+        "删除个人写作偏好": ("remove", "personal"),
+        "removethispersonalwritingpreference": ("remove", "personal"),
     }
-    action = commands.get(normalize_prompt(prompt).casefold())
-    if action is None:
+    decision = commands.get(normalize_prompt(prompt).casefold())
+    if decision is None:
         return None
+    action, scope = decision
     pending = data.get("pending_preference")
     require(pending and pending["action"] == action, "先展示要保存或删除的具体偏好，再确认。")
-    alias = pending["profile"]
-    profile = read_profile(alias)
-    if action == "save":
-        profile["preferences"][pending["key"]] = pending["preference"]
-    else:
-        profile["preferences"].pop(pending["key"], None)
-    save_state(profile_path(alias), profile)
+    require("scope" in pending, "旧版偏好提案未标明范围，请重新登记后确认。")
+    require(scope == pending["scope"], "确认指令的范围与待处理偏好不一致。")
+    alias = pending.get("profile")
+    path = profile_path(alias) if scope == "personal" else root / "writing-preferences.json"
+    with file_lock(path.with_suffix(".lock")):
+        record = read_profile(alias) if scope == "personal" else read_project_preferences(root)
+        if action == "save":
+            record["preferences"][pending["key"]] = pending["preference"]
+        else:
+            record["preferences"].pop(pending["key"], None)
+        save_state(path, record)
+        if scope == "project":
+            render_project_preferences(root, record)
     data.pop("pending_preference")
-    return f"档案 {alias} 已更新写作偏好 {pending['key']}。"
+    target = f"个人档案 {alias}" if scope == "personal" else "当前项目"
+    return f"{target} 已更新写作偏好 {pending['key']}。"
 
 
-def confirm_profile_from_terminal(data):
+def confirm_profile_from_terminal(data, root):
     require(sys.stdin.isatty(), "profile-confirm 需要用户在交互式终端亲自输入。")
     require(data.get("pending_preference"), "先展示要保存或删除的具体偏好。")
     emit(data["pending_preference"])
     try:
-        command = input("请输入「保存写作偏好」或「删除写作偏好」：")
+        command = input("请输入与所列范围一致的确认指令（如「保存写作偏好」或「保存个人写作偏好」）：")
     except EOFError as error:
         raise GateError("未收到偏好确认。") from error
-    decision = profile_decision(data, command)
+    decision = profile_decision(data, command, root)
     require(decision, "未收到明确的偏好修改指令。")
     return decision
 
@@ -197,10 +245,19 @@ def current_round(state):
     return state.get("round", 1)
 
 
+def needs_full_results(state):
+    return ReferenceLibrary.section_key(state["section"]) in ("摘要", "结论")
+
+
 def missing_study(state):
+    def ready(note):
+        return note.get("round") == current_round(state) and (
+            not needs_full_results(state) or bool(note.get("results_coverage"))
+        )
+
     return [
         reference for reference in state["references"]
-        if state["study"].get(reference, {}).get("round") != current_round(state)
+        if not ready(state["study"].get(reference, {}))
     ]
 
 
@@ -217,6 +274,8 @@ def plan_revision(state):
     require_open_round(state)
     require_study(state)
     require(state.get("plan"), "先梳理并登记章节提纲。")
+    if needs_full_results(state):
+        require(state["plan"].get("results_hash"), "摘要和结论须核对本文完整结果后重新登记提纲。")
     content = [
         current_round(state), state["section"], state["references"],
         state["study"], state["plan"],
@@ -248,7 +307,9 @@ def status(state):
         "references": state["references"],
         "missing_study": missing_study(state),
         "feedback_registered": bool(state.get("feedback")),
-        "plan_ready": bool(state.get("plan")),
+        "plan_ready": bool(state.get("plan")) and (
+            not needs_full_results(state) or bool(state["plan"].get("results_hash"))
+        ),
         "writing_authorized": not version and bool(state.get("authorization")),
         "draft_ready": bool(state.get("draft")),
         "humanizer_read": bool(state.get("humanizer")),
@@ -318,7 +379,25 @@ def read_sentence_patterns(notes, source_text):
     return patterns
 
 
-def record_study(state, reference, excerpt_path, context_path, notes_path):
+def read_results_coverage(record, field, results_text):
+    coverage = object_fields(record, field, ("selection",))
+    blocks = record[field].get("blocks")
+    require(isinstance(blocks, list) and blocks, f"{field} 须逐项记录结果小节的定位与取舍。")
+    coverage["blocks"] = []
+    locations = set()
+    for item in blocks:
+        require(isinstance(item, dict), f"{field} 的结果条目须为 JSON 对象。")
+        block = {key: required_text(item, key) for key in ("location", "anchor", "use")}
+        location = normal_text(block["location"]).casefold()
+        anchor = normal_text(block["anchor"])
+        require(location not in locations, f"{field} 的结果定位重复：{block['location']}")
+        require(anchor in results_text, f"{field} 的结果原句须来自结果材料：{block['location']}")
+        locations.add(location)
+        coverage["blocks"].append(block)
+    return coverage
+
+
+def record_study(state, reference, excerpt_path, context_path, notes_path, results_path):
     require_open_round(state)
     require(reference in state["references"], f"该文献未由用户指定：{reference}")
     excerpt = read_text(excerpt_path)
@@ -346,8 +425,14 @@ def record_study(state, reference, excerpt_path, context_path, notes_path):
     sentence_patterns = read_sentence_patterns(notes, source_text)
     if sentence_patterns:
         record["sentence_patterns"] = sentence_patterns
+    results = None
+    if needs_full_results(state):
+        require(results_path, "摘要和结论须用 --results 提供范文完整研究结果。")
+        results = read_text(results_path)
+        record["results_coverage"] = read_results_coverage(notes, "results_coverage", normal_text(results))
+        record["results_hash"] = digest(results)
     assign_study(state, reference, record)
-    return record, excerpt, context
+    return record, excerpt, context, results
 
 
 def assign_study(state, reference, record):
@@ -357,10 +442,19 @@ def assign_study(state, reference, record):
         invalidate_writing(state)
 
 
-def record_plan(state, path):
+def record_plan(state, path, results_path):
     require_open_round(state)
     require_study(state)
     plan = read_object(path)
+    # The receipt is issued here from an actual file, never from the outline JSON.
+    plan.pop("results_hash", None)
+    if needs_full_results(state):
+        require(results_path, "摘要和结论须用 --results 提供本文完整研究结果。")
+        results = read_text(results_path)
+        plan["results_selection"] = read_results_coverage(
+            plan, "results_selection", normal_text(results),
+        )
+        plan["results_hash"] = digest(results)
     required_text(plan, "section_purpose")
     object_fields(plan, "paper_context", PAPER_FIELDS)
     required_text(plan, "section_flow")
@@ -607,7 +701,8 @@ def prompt_hook(host, workspace=None):
         workspace = Path(workspace).resolve()
         if not any(location.is_relative_to(workspace) for location in workspaces):
             return
-    path = state_path(session, workspace or workspaces[0])
+    workspace = workspace or workspaces[0]
+    path = state_path(session, workspace)
     prefix = f"{SKILL_NAME} 会话 {session}。"
     data = read_session(path)
     prompt = event["prompt"]
@@ -635,7 +730,7 @@ def prompt_hook(host, workspace=None):
         save_state(path, data)
 
     try:
-        preference_result = profile_decision(data, prompt)
+        preference_result = profile_decision(data, prompt, workspace / WORK_DATA)
     except GateError as error:
         hook_context(str(error))
         return
@@ -657,7 +752,7 @@ def prompt_hook(host, workspace=None):
     if data["active"] is None:
         if previous_pending:
             save_state(path, data)
-        hook_context("使用该 Skill 时，先登记用户指定范文和写作章节。")
+        hook_context("使用该 Skill 时，在论文目录运行 project-init 建档，再登记用户指定范文和写作章节。")
         return
     try:
         decision = record_user_decision(state, prompt, receipt)
@@ -757,7 +852,7 @@ def register_selected_references(library, references):
 
 def apply_saved_study(state, reference, library, entry):
     note = library.reusable(entry, state["section"])
-    if note is None:
+    if note is None or (needs_full_results(state) and not note.get("results_coverage")):
         return False
     assign_study(state, reference, {**deepcopy(note), "round": current_round(state)})
     return True
@@ -784,6 +879,7 @@ def manage_references(args):
         require(entry, "项目目录里没有这篇文献。")
         emit(reference_details(library, entry, include_studies=True, section=args.section))
         return
+    preferences = initialize_project_preferences(root)
     with ReferenceLibrary.edit(root) as library:
         if args.action == "reference-add":
             entry = library.register(
@@ -791,11 +887,13 @@ def manage_references(args):
                 source=args.source, file=args.file, note=args.note,
             )
             library.save()
-            emit({"reference_index": str(library.markdown), "reference": reference_details(library, entry)})
+            emit({"reference_index": str(library.markdown), "writing_preferences": str(preferences),
+                  "reference": reference_details(library, entry)})
             return
         library.save()
         emit({
             "reference_index": str(library.markdown),
+            "writing_preferences": str(preferences),
             "references": [reference_details(library, entry) for entry in library.entries],
         })
 
@@ -804,11 +902,12 @@ def run(args):
     if args.action == "prompt-hook":
         prompt_hook(args.host, args.workspace)
         return
-    if args.action in ("references", "reference-add", "reference-show"):
+    if args.action in ("project-init", "references", "reference-add", "reference-show"):
         manage_references(args)
         return
     path = state_path(args.session)
     data = read_session(path)
+    root = Path.cwd() / WORK_DATA
     if args.action == "profile-use":
         alias = profile_path(args.alias).stem
         if data.get("profile") != alias:
@@ -818,22 +917,27 @@ def run(args):
         emit(read_profile(alias))
         return
     if args.action == "profile-show":
-        emit(read_profile(required_text(data, "profile")))
+        if args.scope == "personal":
+            emit(read_profile(required_text(data, "profile")))
+        else:
+            markdown = initialize_project_preferences(root)
+            emit({**read_project_preferences(root), "writing_preferences": str(markdown)})
         return
     if args.action in {"profile-propose", "profile-remove"}:
-        pending = stage_preference(data, args)
+        pending = stage_preference(data, args, root)
         save_state(path, data)
         emit(pending)
         return
     if args.action == "profile-confirm":
-        decision = confirm_profile_from_terminal(data)
+        decision = confirm_profile_from_terminal(data, root)
         save_state(path, data)
         print(decision)
         return
     if args.action == "init":
         state = init_chapter(data, args)
+        preferences = initialize_project_preferences(root)
         reused = []
-        with ReferenceLibrary.edit(Path.cwd() / WORK_DATA) as library:
+        with ReferenceLibrary.edit(root) as library:
             entries = register_selected_references(library, state["references"])
             if not state.get("final"):
                 missing = set(missing_study(state))
@@ -843,7 +947,7 @@ def run(args):
                         continue
                     if apply_saved_study(state, reference, library, entry):
                         reused.append(reference)
-                    elif state["mode"] == "polish" and not entry["files"] and not entry["sections"]:
+                    elif state["mode"] == "polish" and not needs_full_results(state) and not entry["files"] and not entry["sections"]:
                         # A fileless study created before the reference library existed.
                         note = previous.get("study", {}).get(reference)
                         if note and note.get("round") == current_round(previous):
@@ -851,12 +955,16 @@ def run(args):
                             reused.append(reference)
             library.save()
         save_state(path, data)
-        emit({**status(state), "reference_index": str(library.markdown), "reused_study": reused})
+        emit({**status(state), "reference_index": str(library.markdown),
+              "writing_preferences": str(preferences), "reused_study": reused})
         return
     if args.action == "translate-init":
         state = init_translation(data, args)
+        preferences = initialize_project_preferences(root)
+        with ReferenceLibrary.edit(root) as library:
+            library.save()
         save_state(path, data)
-        emit(status(state))
+        emit({**status(state), "reference_index": str(library.markdown), "writing_preferences": str(preferences)})
         return
     if args.action == "chapters":
         entries = [status(state) for state in data["tasks"].values()]
@@ -894,10 +1002,12 @@ def run(args):
             emit(value)
         return
     if args.action == "study":
-        record, excerpt, context = record_study(state, args.reference, args.excerpt, args.context, args.notes)
+        record, excerpt, context, results = record_study(
+            state, args.reference, args.excerpt, args.context, args.notes, args.results,
+        )
         with ReferenceLibrary.edit(Path.cwd() / WORK_DATA) as library:
             entry = library.register(args.reference)
-            library.archive(entry, state["section"], record, excerpt, context)
+            library.archive(entry, state["section"], record, excerpt, context, results=results)
             library.save()
     elif args.action == "reuse-study":
         require_open_round(state)
@@ -909,7 +1019,7 @@ def run(args):
             "当前版本没有可用的对应章节记录。请读取项目里的原文并登记本节学习。",
         )
     elif args.action == "plan":
-        record_plan(state, args.input)
+        record_plan(state, args.input, args.results)
     elif args.action == "revise":
         record_revision(state, args.input, args.references)
         with ReferenceLibrary.edit(Path.cwd() / WORK_DATA) as library:
@@ -981,10 +1091,13 @@ def main():
     hook.add_argument("--host", choices=HOSTS, default="codex")
     hook.add_argument("--workspace", type=Path, help="only accept sessions in this workspace")
     sub.add_parser("profile-use").add_argument("alias")
-    sub.add_parser("profile-propose").add_argument("input")
-    sub.add_parser("profile-remove").add_argument("key")
-    sub.add_parser("profile-show")
+    for action, field in (("profile-propose", "input"), ("profile-remove", "key"), ("profile-show", None)):
+        profile = sub.add_parser(action)
+        profile.add_argument("--scope", choices=("project", "personal"), default="project")
+        if field:
+            profile.add_argument(field)
     sub.add_parser("profile-confirm")
+    sub.add_parser("project-init", help="initialize both workspace Markdown archives")
     sub.add_parser("references", help="create or list the workspace bibliography")
     entry = sub.add_parser("reference-add")
     entry.add_argument("reference")
@@ -1018,11 +1131,15 @@ def main():
     study.add_argument("excerpt")
     study.add_argument("context")
     study.add_argument("notes")
+    study.add_argument("--results", help="UTF-8 complete reference results for abstract or conclusion")
     sub.add_parser("reuse-study").add_argument("reference")
     revise = sub.add_parser("revise")
     revise.add_argument("input")
     revise.add_argument("--references", nargs="+")
-    for action in ("plan", "save-draft", "finalize", "finish-translation"):
+    plan = sub.add_parser("plan")
+    plan.add_argument("input")
+    plan.add_argument("--results", help="UTF-8 complete author results for abstract or conclusion")
+    for action in ("save-draft", "finalize", "finish-translation"):
         sub.add_parser(action).add_argument("input")
     for action in (
         "status", "chapters", "show", "check-start", "read-editor", "read-humanizer",
